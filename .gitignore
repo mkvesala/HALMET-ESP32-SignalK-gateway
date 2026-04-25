@@ -1,0 +1,10 @@
+secrets.h
+secrets.f*.h
+
+.claude/
+CLAUDE_SESSION_CONTEXT.md
+ESP32_gateway_pattern.md
+
+*.bak
+*.tmp
+.DS_Store

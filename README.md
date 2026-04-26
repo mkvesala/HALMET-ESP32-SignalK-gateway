@@ -1,3 +1,5 @@
+![Logo](docs/projectlogo.svg)
+
 # HALMET-ESP32-SignalK Gateway
 
 [![Platform: ESP32](https://img.shields.io/badge/Platform-ESP32-blue)](https://www.espressif.com/en/sdks/esp-arduino)
@@ -17,7 +19,7 @@ Developed and tested on:
 - [Arduino IDE](https://www.arduino.cc/en/software/) (2.3.8)
 - SignalK Server (2.23.0)
 - DS18B20 1-Wire temperature sensor (exhaust)
-- VDO 10–180 Ω European resistive fuel sender
+- VDO 10-180 Ω European resistive fuel sender
 
 Integrated via ESP-NOW to:
 - [ESP32-Crowpanel-compass](https://github.com/mkvesala/ESP32-Crowpanel-compass)
@@ -52,7 +54,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 **`VDOSensor`:**
 - Owns: `Adafruit_ADS1115`
 - Owned by: `HALMETApplication`
-- Responsible for: reading ADS1115 channel 0 and converting the measured voltage to sender resistance in ohms (CCS mode: V = R × 10 mA)
+- Responsible for: reading ADS1115 channel 0 and converting the measured voltage to sender resistance in ohms (CCS mode: V = R x 10 mA)
 
 **`VDOProcessor`:**
 - Owns: `FuelLevelDelta` (data struct), 120-sample circular buffer
@@ -105,7 +107,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 2. The HALMET constant current source (10 mA, CCS jumper on input A1) allows direct resistance measurement: R = V / 10 mA
 3. Resistance is mapped linearly to fill ratio: 10 Ω = full, 180 Ω = empty (VDO European sender)
 4. Three-phase filtering pipeline eliminates wave-induced noise (signal/noise ratio in a single raw sample is ~1:50 000):
-   - **Phase 1 (0–4 min):** median window filling — raw resistance sent immediately so data flows from boot
+   - **Phase 1 (0-4 min):** median window filling — raw resistance sent immediately so data flows from boot
    - **Phase 2 (4 min):** EMA initialized to the first median value — no warm-up ramp
    - **Phase 3 (4 min →):** normal operation: median(120) → EMA(α=0.005) → fill ratio
 
@@ -123,7 +125,7 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 | SignalK path | Unit | Frequency | Source |
 |---|---|---|---|
 | `propulsion.0.exhaustTemperature` | Kelvin | ~1 s | DS18B20 |
-| `tanks.fuel.0.currentLevel` | ratio 0–1 | ~3 s | VDO/ADS1115 |
+| `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
 | `tanks.fuel.0.capacity` | m³ | once on connect | static (0.4 m³) |
 
 Source name is auto-derived from the device MAC address: `esp32.halmet-XXYYZZ`.
@@ -138,7 +140,7 @@ Broadcasts sensor data via ESP-NOW for other ESP32 devices, such as external dis
 - `HALMETEngineDelta` struct containing:
   - `exhaust_temp_k` — exhaust temperature in Kelvin
 - `HALMETTankDelta` struct containing:
-  - `fuel_level_ratio` — fuel level ratio 0.0–1.0
+  - `fuel_level_ratio` — fuel level ratio 0.0-1.0
 
 **Broadcast mode:** Uses broadcast address (FF:FF:FF:FF:FF:FF) — any ESP-NOW receiver on the same WiFi channel can listen.
 
@@ -189,11 +191,11 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 
 The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) provides:
 - ESP32-WROOM-32E (16 MB flash)
-- 4 galvanically isolated analog inputs (A1–A4) via ADS1115 16-bit I2C ADC at 0x48
+- 4 galvanically isolated analog inputs (A1-A4) via ADS1115 16-bit I2C ADC at 0x48
 - Optional constant current source (10 mA) per analog input via solder jumper
-- 4 galvanically isolated digital inputs (DI1–DI4)
+- 4 galvanically isolated digital inputs (DI1-DI4)
 - 1-Wire header on GPIO4
-- 5–32 V power input
+- 5-32 V power input
 
 **Arduino IDE board setting: `ESP32 Dev Module`** (not SH-ESP32 — pin assignments differ).
 
@@ -202,7 +204,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 | Sensor | Connection | HALMET header |
 |--------|-----------|---------------|
 | DS18B20 temperature | 1-Wire | 1-Wire header (GPIO4) |
-| VDO resistive fuel sender | Resistive, 10–180 Ω | Analog input A1 (CCS jumper enabled) |
+| VDO resistive fuel sender | Resistive, 10-180 Ω | Analog input A1 (CCS jumper enabled) |
 
 ### Bill of materials
 

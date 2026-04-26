@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" width="480" height="200">
+
+  <!-- Background -->
+  <rect width="480" height="200" fill="#0d1117" rx="12"/>
+
+  <!-- Device: outer bezel ring -->
+  <circle cx="100" cy="100" r="88" fill="#1c2128" stroke="#30363d" stroke-width="3"/>
+
+  <!-- Device: inner screen (round display) -->
+  <circle cx="100" cy="100" r="72" fill="#100000"/>
+
+  <!-- Device: screen glow (red) -->
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#FF3333" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- ENGINE SYMBOL -->
+  <!-- Three cylinder heads (bumps on top) -->
+  <rect x="80" y="79" width="11" height="8" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+  <rect x="95" y="79" width="11" height="8" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+  <rect x="110" y="79" width="11" height="8" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+
+  <!-- Valve / cam cover -->
+  <rect x="78" y="86" width="44" height="9" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+
+  <!-- Main engine block -->
+  <rect x="74" y="94" width="52" height="22" rx="3" fill="#180000" stroke="#FF3333" stroke-width="2"/>
+
+  <!-- Left side pipe (inlet) -->
+  <rect x="62" y="98" width="12" height="8" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+
+  <!-- Right side pipe (exhaust) -->
+  <rect x="126" y="98" width="12" height="8" rx="2" fill="#180000" stroke="#FF3333" stroke-width="1.5"/>
+
+  <!-- Cylinder bore separator lines -->
+  <line x1="91" y1="94" x2="91" y2="116" stroke="#FF3333" stroke-width="1" opacity="0.4"/>
+  <line x1="109" y1="94" x2="109" y2="116" stroke="#FF3333" stroke-width="1" opacity="0.4"/>
+
+  <!-- Spec text -->
+  <text x="100" y="130" text-anchor="middle" dominant-baseline="central"
+        font-family="monospace" font-size="10" fill="#CC1111">Hat Labs HALMET</text>
+
+  <!-- Text block: project name -->
+  <text x="200" y="68" font-family="monospace" font-size="20"
+        font-weight="bold" fill="#ffffff">HALMET-ESP32-SignalK</text>
+  <text x="200" y="94" font-family="monospace" font-size="20"
+        font-weight="bold" fill="#FF3333">Gateway</text>
+
+  <!-- Divider line -->
+  <line x1="200" y1="105" x2="460" y2="105" stroke="#30363d" stroke-width="1"/>
+
+  <!-- Subtitle lines -->
+  <text x="200" y="122" font-family="monospace" font-size="11"
+        fill="#8b949e">Marine engine &amp; tank interface</text>
+  <text x="200" y="138" font-family="monospace" font-size="11"
+        fill="#8b949e">HALMET&#xB7;ESP32&#xB7;SignalK&#xB7;ESP-NOW</text>
+
+  <!-- Badges row -->
+  <!-- Engine temp badge -->
+  <rect x="200" y="150" width="78" height="18" rx="4" fill="#180000" stroke="#FF3333" stroke-width="1"/>
+  <text x="238" y="163" text-anchor="middle" font-family="monospace" font-size="10"
+        fill="#FF3333">Exhaust Temp</text>
+
+  <!-- Fuel level badge -->
+  <rect x="284" y="150" width="78" height="18" rx="4" fill="#180000" stroke="#FF3333" stroke-width="1"/>
+  <text x="320" y="163" text-anchor="middle" font-family="monospace" font-size="10"
+        fill="#FF3333">Fuel Level</text>
+
+</svg>

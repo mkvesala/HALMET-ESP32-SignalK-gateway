@@ -11,12 +11,14 @@ namespace ESPNow {
 
     // Message types (extend as new sensors are added)
     enum class ESPNowMsgType : uint8_t {
-        HEADING_DELTA   = 1,
-        BATTERY_DELTA   = 2,
-        WEATHER_DELTA   = 3,
-        GNSS_DELTA      = 4,
-        LEVEL_COMMAND   = 10,
-        LEVEL_RESPONSE  = 11,
+        HEADING_DELTA        = 1,
+        BATTERY_DELTA        = 2,
+        WEATHER_DELTA        = 3,
+        GNSS_DELTA           = 4,
+        HALMET_ENGINE_DELTA  = 5,
+        HALMET_TANK_DELTA    = 6,
+        LEVEL_COMMAND        = 10,
+        LEVEL_RESPONSE       = 11,
     };
 
     // === H E A D E R ===
@@ -106,6 +108,20 @@ namespace ESPNow {
         h.reserved[0] = 0;
         h.reserved[1] = 0;
     }
+
+    // === H A L M E T  P A Y L O A D S ===
+
+    // Engine data
+    // Sent by HALMET-ESP32-SignalK-gateway
+    struct HALMETEngineDelta {
+        float exhaust_temp_k;    // propulsion.0.exhaustTemperature [K]
+    };
+
+    // Tank data
+    // Sent by HALMET-ESP32-SignalK-gateway
+    struct HALMETTankDelta {
+        float fuel_level_ratio;  // tanks.fuel.0.currentLevel [0.0..1.0]
+    };
 
     // === C R O W P A N E L  I N T E R N A L  D A T A ===
 

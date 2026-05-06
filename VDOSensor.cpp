@@ -19,12 +19,9 @@ bool VDOSensor::readResistance(float &ohms) {
     int16_t raw = _ads.readADC_SingleEnded(ADS_CHANNEL);
     float voltage = raw * ADS_LSB_V;
     if (voltage < 0.0f) voltage = 0.0f;
-    Serial.printf("[VDO] raw=%d  voltage=%.4f V  ", raw, voltage);
     if (voltage < MIN_VOLTAGE_V) {
-        Serial.println("(below min — CCS not ready, skipping)");
         return false;
     }
     ohms = voltage / CCS_CURRENT_A;
-    Serial.printf("ohms=%.1f\n", ohms);
     return true;
 }

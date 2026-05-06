@@ -62,4 +62,5 @@ private:
     float         _last_sent_temp_k = NAN;
     unsigned long _last_tank_send_ms   = 0;
     unsigned long _last_engine_send_ms = 0;
+    bool          _capacity_sent       = false;
 };

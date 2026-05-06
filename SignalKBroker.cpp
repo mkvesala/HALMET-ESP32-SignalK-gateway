@@ -20,25 +20,30 @@ bool SignalKBroker::begin() {
     return connectWebsocket();
 }
 
-// Keep WebSocket alive
+// Keep WebSocket alive; send tank capacity once per connection after server hello is received
 void SignalKBroker::handleStatus() {
-    if (_ws_open) _ws.poll();
+    if (!_ws_open) return;
+    _ws.poll();
+    if (!_capacity_sent) {
+        sendTankCapacity();
+        _capacity_sent = true;
+    }
 }
 
 // Connect WebSocket and register callbacks
 bool SignalKBroker::connectWebsocket() {
     _ws_open = _ws.connect(_sk_url);
     if (_ws_open) {
-        Serial.println("[SK] WebSocket connected");
+        //Serial.println("[SK] WebSocket connected");
+        _capacity_sent = false;
         _ws.onMessage([this](WebsocketsMessage msg) {
             onMessageCallback(msg);
         });
         _ws.onEvent([this](WebsocketsEvent event, const String &data) {
             onEventCallback(event, data);
         });
-        sendTankCapacity();
     } else {
-        Serial.println("[SK] WebSocket connect FAILED");
+        //Serial.println("[SK] WebSocket connect FAILED");
     }
     return _ws_open;
 }
@@ -146,8 +151,9 @@ void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data
         case WebsocketsEvent::ConnectionOpened:
             break;
         case WebsocketsEvent::ConnectionClosed:
-            Serial.println("[SK] WebSocket closed");
+            //Serial.println("[SK] WebSocket closed");
             _ws_open = false;
+            _capacity_sent = false;
             break;
         case WebsocketsEvent::GotPing:
             _ws.pong();

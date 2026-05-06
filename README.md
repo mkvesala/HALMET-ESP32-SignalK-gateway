@@ -250,7 +250,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
    ```
 4. **Make sure that `secrets.h` is listed in your `.gitignore` file**
 5. Enable the CCS jumper on the HALMET board for analog input A1 (VDO sender)
-6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). A 4.7 kΩ pull-up resistor between VCC and DQ is required — without it the device may fail to boot when the sensor is connected.
+6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). The HALMET board has a built-in pull-up resistor on the 1-Wire line — no external pull-up is needed. Verify wiring against the HALMET schematic; incorrect wiring (e.g. swapped VCC/GND) will prevent the device from booting.
 7. Connect the VDO sender signal wire to HALMET analog input A1; connect sender ground to HALMET GND
 8. Connect and power up the HALMET board
 9. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)

@@ -26,11 +26,18 @@ bool ESPNowBroker::begin() {
     return true;
 }
 
-// Broadcast exhaust temperature if a valid reading is available
+// Broadcast exhaust temperature if changed beyond deadband or keepalive interval elapsed
 void ESPNowBroker::sendEngineDelta() {
     if (!_initialized) return;
     auto delta = _ds18b20_proc.getExhaustTempDelta();
     if (!validf(delta.exhaust_temp_k)) return;
+
+    unsigned long now = millis();
+    bool changed   = !validf(_last_sent_temp_k) || fabsf(delta.exhaust_temp_k - _last_sent_temp_k) >= DB_TEMP_K;
+    bool keepalive = (long)(now - _last_engine_send_ms) >= (long)ESPNOW_KEEPALIVE_MS;
+    if (!changed && !keepalive) return;
+    _last_sent_temp_k    = delta.exhaust_temp_k;
+    _last_engine_send_ms = now;
 
     ESPNow::ESPNowPacket<ESPNow::HALMETEngineDelta> pkt;
     ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_ENGINE_DELTA,
@@ -39,11 +46,18 @@ void ESPNowBroker::sendEngineDelta() {
     esp_now_send(BROADCAST_ADDR, reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
 }
 
-// Broadcast fuel level ratio if a valid reading is available
+// Broadcast fuel level ratio if changed beyond deadband or keepalive interval elapsed
 void ESPNowBroker::sendTankDelta() {
     if (!_initialized) return;
     auto delta = _vdo_proc.getFuelLevelDelta();
     if (!validf(delta.fuel_level_ratio)) return;
+
+    unsigned long now = millis();
+    bool changed   = !validf(_last_sent_level) || fabsf(delta.fuel_level_ratio - _last_sent_level) >= DB_LEVEL;
+    bool keepalive = (long)(now - _last_tank_send_ms) >= (long)ESPNOW_KEEPALIVE_MS;
+    if (!changed && !keepalive) return;
+    _last_sent_level   = delta.fuel_level_ratio;
+    _last_tank_send_ms = now;
 
     ESPNow::ESPNowPacket<ESPNow::HALMETTankDelta> pkt;
     ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_TANK_DELTA,

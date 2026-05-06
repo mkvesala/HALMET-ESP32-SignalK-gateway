@@ -28,4 +28,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `VDOSensor` — added minimum voltage threshold (`MIN_VOLTAGE_V = 0.005 V`) to discard reads taken before the CCS stabilises; returns `false` instead of storing a spurious near-zero resistance.
 - `SignalKBroker` — deadband `static` local variables replaced with member variables so state is not lost across reconnects.
 - `SignalKBroker` — added 60 s keepalive (`SK_KEEPALIVE_MS`) to force periodic sends even when the value is constant, preventing SignalK from treating the path as stale.
-- `SignalKBroker::connectWebsocket()` — moved WebSocket open/fail logging and `sendTankCapacity()` call from `onEventCallback` into `connectWebsocket()` directly, because the `ConnectionOpened` event fires during `_ws.connect()` before the callback is registered.
+- `SignalKBroker::connectWebsocket()` — moved `sendTankCapacity()` from `connectWebsocket()` to the first `handleStatus()` poll cycle via `_capacity_sent` flag, because sending immediately after `connect()` (before the server hello is received) caused the server to close the connection on every boot.
+- `ESPNowBroker` — added deadband (`DB_TEMP_K = 0.05 K`, `DB_LEVEL = 0.00005`) and 60 s keepalive (`ESPNOW_KEEPALIVE_MS`) matching `SignalKBroker` values; previously broadcast on every ~3 s timer tick regardless of value change.

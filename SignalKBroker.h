@@ -54,6 +54,12 @@ private:
     char _sk_url[512]    = {};
     char _sk_source[32]  = {};
 
-    static constexpr float DB_TEMP_K = 0.05f;    // deadband: exhaust temp [K]
-    static constexpr float DB_LEVEL  = 0.00005f; // deadband: fuel level ratio
+    static constexpr float         DB_TEMP_K       = 0.05f;    // deadband: exhaust temp [K]
+    static constexpr float         DB_LEVEL        = 0.00005f; // deadband: fuel level ratio
+    static constexpr unsigned long SK_KEEPALIVE_MS = 60013UL;  // force send even if value unchanged
+
+    float         _last_sent_level  = NAN;
+    float         _last_sent_temp_k = NAN;
+    unsigned long _last_tank_send_ms   = 0;
+    unsigned long _last_engine_send_ms = 0;
 };

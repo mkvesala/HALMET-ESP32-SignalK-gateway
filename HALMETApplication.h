@@ -55,9 +55,10 @@ private:
     unsigned long _next_ws_try_ms     = 0;
     unsigned long _expn_retry_ms      = WS_RETRY_MS;
 
-    bool      _ads_ok     = false;
-    bool      _ds18_ok    = false;
-    WifiState _wifi_state = WifiState::INIT;
+    bool      _ads_ok                    = false;
+    bool      _ds18_ok                   = false;
+    bool      _wifi_services_initialized = false;
+    WifiState _wifi_state                = WifiState::INIT;
 
     volatile bool _ap_intruder         = false;
     uint8_t       _ap_intruder_mac[6]  = {};

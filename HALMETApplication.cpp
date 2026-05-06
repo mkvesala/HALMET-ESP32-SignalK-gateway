@@ -209,8 +209,11 @@ void HALMETApplication::handleESPNow(unsigned long now) {
     _espnow.sendTankDelta();
 }
 
-// Initialize WiFi-dependent services (called once on CONNECTED)
+// Initialize WiFi-dependent services — guarded: OTA and WebServer routes must only be registered once
 void HALMETApplication::initWifiServices() {
+    if (_wifi_services_initialized) return;
+    _wifi_services_initialized = true;
+
     _signalk.begin();
 
     ArduinoOTA.setHostname(_signalk.getSignalKSource());

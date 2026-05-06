@@ -29,12 +29,16 @@ void SignalKBroker::handleStatus() {
 bool SignalKBroker::connectWebsocket() {
     _ws_open = _ws.connect(_sk_url);
     if (_ws_open) {
+        Serial.println("[SK] WebSocket connected");
         _ws.onMessage([this](WebsocketsMessage msg) {
             onMessageCallback(msg);
         });
         _ws.onEvent([this](WebsocketsEvent event, const String &data) {
             onEventCallback(event, data);
         });
+        sendTankCapacity();
+    } else {
+        Serial.println("[SK] WebSocket connect FAILED");
     }
     return _ws_open;
 }
@@ -45,15 +49,18 @@ void SignalKBroker::closeWebsocket() {
     _ws_open = false;
 }
 
-// Send exhaust temperature delta if changed beyond deadband
+// Send exhaust temperature delta if changed beyond deadband or keepalive interval elapsed
 void SignalKBroker::sendEngineDelta() {
     if (!_ws_open) return;
     auto delta = _ds18b20_proc.getExhaustTempDelta();
     if (!validf(delta.exhaust_temp_k)) return;
 
-    static float last_temp_k = NAN;
-    if (validf(last_temp_k) && fabsf(delta.exhaust_temp_k - last_temp_k) < DB_TEMP_K) return;
-    last_temp_k = delta.exhaust_temp_k;
+    unsigned long now = millis();
+    bool changed  = !validf(_last_sent_temp_k) || fabsf(delta.exhaust_temp_k - _last_sent_temp_k) >= DB_TEMP_K;
+    bool keepalive = (long)(now - _last_engine_send_ms) >= (long)SK_KEEPALIVE_MS;
+    if (!changed && !keepalive) return;
+    _last_sent_temp_k    = delta.exhaust_temp_k;
+    _last_engine_send_ms = now;
 
     _engine_doc.clear();
     _engine_doc["context"] = "vessels.self";
@@ -68,15 +75,18 @@ void SignalKBroker::sendEngineDelta() {
     sendDoc(_engine_doc);
 }
 
-// Send fuel level ratio delta if changed beyond deadband
+// Send fuel level ratio delta if changed beyond deadband or keepalive interval elapsed
 void SignalKBroker::sendTankDelta() {
     if (!_ws_open) return;
     auto delta = _vdo_proc.getFuelLevelDelta();
     if (!validf(delta.fuel_level_ratio)) return;
 
-    static float last_level = NAN;
-    if (validf(last_level) && fabsf(delta.fuel_level_ratio - last_level) < DB_LEVEL) return;
-    last_level = delta.fuel_level_ratio;
+    unsigned long now = millis();
+    bool changed   = !validf(_last_sent_level) || fabsf(delta.fuel_level_ratio - _last_sent_level) >= DB_LEVEL;
+    bool keepalive = (long)(now - _last_tank_send_ms) >= (long)SK_KEEPALIVE_MS;
+    if (!changed && !keepalive) return;
+    _last_sent_level    = delta.fuel_level_ratio;
+    _last_tank_send_ms  = now;
 
     _tank_doc.clear();
     _tank_doc["context"] = "vessels.self";
@@ -134,10 +144,9 @@ void SignalKBroker::onMessageCallback(WebsocketsMessage /*msg*/) {}
 void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data*/) {
     switch (event) {
         case WebsocketsEvent::ConnectionOpened:
-            _ws_open = true;
-            sendTankCapacity();
             break;
         case WebsocketsEvent::ConnectionClosed:
+            Serial.println("[SK] WebSocket closed");
             _ws_open = false;
             break;
         case WebsocketsEvent::GotPing:

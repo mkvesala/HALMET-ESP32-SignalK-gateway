@@ -54,7 +54,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 **`VDOSensor`:**
 - Owns: `Adafruit_ADS1115`
 - Owned by: `HALMETApplication`
-- Responsible for: reading ADS1115 channel 0 and converting the measured voltage to sender resistance in ohms (CCS mode: V = R x 10 mA)
+- Responsible for: reading ADS1115 channel 0 and converting the measured voltage to sender resistance in ohms (CCS mode: V = R × 1 mA; HALMET hardware measured at 1 mA despite Hat Labs documentation stating 10 mA)
 
 **`VDOProcessor`:**
 - Owns: `FuelLevelDelta` (data struct), 120-sample circular buffer
@@ -104,7 +104,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 **Fuel level (VDO sender + ADS1115):**
 1. ADS1115 channel 0 is sampled every 2 s in the main loop
-2. The HALMET constant current source (10 mA, CCS jumper on input A1) allows direct resistance measurement: R = V / 10 mA
+2. The HALMET constant current source (1 mA, CCS jumper on input A1) allows direct resistance measurement: R = V / 1 mA. Note: Hat Labs documentation states 10 mA but hardware measurement confirms 1 mA.
 3. Resistance is mapped linearly to fill ratio: 10 Ω = full, 180 Ω = empty (VDO European sender)
 4. Three-phase filtering pipeline eliminates wave-induced noise (signal/noise ratio in a single raw sample is ~1:50 000):
    - **Phase 1 (0-4 min):** median window filling — raw resistance sent immediately so data flows from boot
@@ -124,8 +124,8 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 
 | SignalK path | Unit | Frequency | Source |
 |---|---|---|---|
-| `propulsion.0.exhaustTemperature` | Kelvin | ~1 s | DS18B20 |
-| `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
+| `propulsion.0.exhaustTemperature` | Kelvin | ~1 s, or 60 s keepalive | DS18B20 |
+| `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s on change, or 60 s keepalive | VDO/ADS1115 |
 | `tanks.fuel.0.capacity` | m³ | once on connect | static (0.4 m³) |
 
 Source name is auto-derived from the device MAC address: `esp32.halmet-XXYYZZ`.
@@ -191,8 +191,8 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 
 The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) provides:
 - ESP32-WROOM-32E (16 MB flash)
-- 4 galvanically isolated analog inputs (A1-A4) via ADS1115 16-bit I2C ADC at 0x48
-- Optional constant current source (10 mA) per analog input via solder jumper
+- 4 galvanically isolated analog inputs (A1-A4) via ADS1115 16-bit I2C ADC at 0x4B (ADDR pin tied to SCL on HALMET board)
+- Optional constant current source (1 mA measured; Hat Labs documentation states 10 mA) per analog input via solder jumper
 - 4 galvanically isolated digital inputs (DI1-DI4)
 - 1-Wire header on GPIO4
 - 5-32 V power input
@@ -250,7 +250,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
    ```
 4. **Make sure that `secrets.h` is listed in your `.gitignore` file**
 5. Enable the CCS jumper on the HALMET board for analog input A1 (VDO sender)
-6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4)
+6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). A 4.7 kΩ pull-up resistor between VCC and DQ is required — without it the device may fail to boot when the sensor is connected.
 7. Connect the VDO sender signal wire to HALMET analog input A1; connect sender ground to HALMET GND
 8. Connect and power up the HALMET board
 9. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)

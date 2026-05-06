@@ -17,8 +17,6 @@ namespace ESPNow {
         GNSS_DELTA           = 4,
         HALMET_ENGINE_DELTA  = 5,
         HALMET_TANK_DELTA    = 6,
-        LEVEL_COMMAND        = 10,
-        LEVEL_RESPONSE       = 11,
     };
 
     // === H E A D E R ===
@@ -76,19 +74,16 @@ namespace ESPNow {
         uint8_t reserved;     // padding
     };  // 24 bytes
 
-    // Level command (CrowPanel → Compass, broadcast)
-    // Sent to CMPS14-ESP32-SignalK-gateway
-    struct LevelCommand {
-        uint8_t magic[4];     // "LVLC" — redundant in Phase 2 (msg_type identifies the packet)
-        uint8_t reserved[4];
+    // Engine data
+    // Sent by HALMET-ESP32-SignalK-gateway
+    struct HALMETEngineDelta {
+        float exhaust_temp_k;    // propulsion.0.exhaustTemperature [K]
     };
 
-    // Level response (Compass → CrowPanel, unicast)
-    // Sent by CMPS14-ESP32-SignalK-gateway
-    struct LevelResponse {
-        uint8_t magic[4];     // "LVLR" — redundant in Phase 2 (msg_type identifies the packet)
-        uint8_t success;      // 1 = OK, 0 = failed
-        uint8_t reserved[3];
+    // Tank data
+    // Sent by HALMET-ESP32-SignalK-gateway
+    struct HALMETTankDelta {
+        float fuel_level_ratio;  // tanks.fuel.0.currentLevel [0.0..1.0]
     };
 
     // === W R A P P E R ===
@@ -108,20 +103,6 @@ namespace ESPNow {
         h.reserved[0] = 0;
         h.reserved[1] = 0;
     }
-
-    // === H A L M E T  P A Y L O A D S ===
-
-    // Engine data
-    // Sent by HALMET-ESP32-SignalK-gateway
-    struct HALMETEngineDelta {
-        float exhaust_temp_k;    // propulsion.0.exhaustTemperature [K]
-    };
-
-    // Tank data
-    // Sent by HALMET-ESP32-SignalK-gateway
-    struct HALMETTankDelta {
-        float fuel_level_ratio;  // tanks.fuel.0.currentLevel [0.0..1.0]
-    };
 
     // === C R O W P A N E L  I N T E R N A L  D A T A ===
 

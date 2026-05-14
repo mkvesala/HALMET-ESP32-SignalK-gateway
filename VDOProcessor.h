@@ -29,8 +29,8 @@ public:
 private:
     static constexpr int   MEDIAN_WINDOW    = 120;
     static constexpr float EMA_ALPHA        = 0.005f;
-    static constexpr float VDO_OHMS_FULL    = 10.0f;    // VDO European sender: 10 Ω = full
-    static constexpr float VDO_OHMS_EMPTY   = 180.0f;   // 180 Ω = empty
+    static constexpr float VDO_OHMS_EMPTY   = 3.0f;     // Wema VDO European sender: ~3 Ω = empty
+    static constexpr float VDO_OHMS_FULL    = 180.0f;   // 180 Ω = full
     static constexpr float TANK_CAPACITY_M3 = 0.400f;   // 400 L = 0.4 m³
 
     float fillRatio(float ohms) const;

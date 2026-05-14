@@ -46,7 +46,7 @@ bool VDOProcessor::available() const {
 
 // Linear interpolation: resistance → fill ratio [0.0..1.0]
 float VDOProcessor::fillRatio(float ohms) const {
-    float r = 1.0f - (ohms - VDO_OHMS_FULL) / (VDO_OHMS_EMPTY - VDO_OHMS_FULL);
+    float r = (ohms - VDO_OHMS_EMPTY) / (VDO_OHMS_FULL - VDO_OHMS_EMPTY);
     if (r < 0.0f) r = 0.0f;
     if (r > 1.0f) r = 1.0f;
     return r;

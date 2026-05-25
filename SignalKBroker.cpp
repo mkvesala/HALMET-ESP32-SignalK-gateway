@@ -54,18 +54,11 @@ void SignalKBroker::closeWebsocket() {
     _ws_open = false;
 }
 
-// Send exhaust temperature delta if changed beyond deadband or keepalive interval elapsed
+// Send exhaust temperature delta
 void SignalKBroker::sendEngineDelta() {
     if (!_ws_open) return;
     auto delta = _ds18b20_proc.getExhaustTempDelta();
     if (!validf(delta.exhaust_temp_k)) return;
-
-    unsigned long now = millis();
-    bool changed  = !validf(_last_sent_temp_k) || fabsf(delta.exhaust_temp_k - _last_sent_temp_k) >= DB_TEMP_K;
-    bool keepalive = (long)(now - _last_engine_send_ms) >= (long)SK_KEEPALIVE_MS;
-    if (!changed && !keepalive) return;
-    _last_sent_temp_k    = delta.exhaust_temp_k;
-    _last_engine_send_ms = now;
 
     _engine_doc.clear();
     _engine_doc["context"] = "vessels.self";
@@ -80,18 +73,11 @@ void SignalKBroker::sendEngineDelta() {
     sendDoc(_engine_doc);
 }
 
-// Send fuel level ratio delta if changed beyond deadband or keepalive interval elapsed
+// Send fuel level ratio delta
 void SignalKBroker::sendTankDelta() {
     if (!_ws_open) return;
     auto delta = _vdo_proc.getFuelLevelDelta();
     if (!validf(delta.fuel_level_ratio)) return;
-
-    unsigned long now = millis();
-    bool changed   = !validf(_last_sent_level) || fabsf(delta.fuel_level_ratio - _last_sent_level) >= DB_LEVEL;
-    bool keepalive = (long)(now - _last_tank_send_ms) >= (long)SK_KEEPALIVE_MS;
-    if (!changed && !keepalive) return;
-    _last_sent_level    = delta.fuel_level_ratio;
-    _last_tank_send_ms  = now;
 
     _tank_doc.clear();
     _tank_doc["context"] = "vessels.self";

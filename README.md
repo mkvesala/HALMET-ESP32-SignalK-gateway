@@ -19,7 +19,7 @@ Developed and tested on:
 - [Arduino IDE](https://www.arduino.cc/en/software/) (2.3.8)
 - SignalK Server (2.23.0)
 - DS18B20 1-Wire temperature sensor (exhaust)
-- VDO 10-180 Ω European resistive fuel sender
+- Wema/VDO European resistive fuel sender (3-180 Ω, low resistance = empty)
 
 Integrated via ESP-NOW to:
 - [ESP32-Crowpanel-compass](https://github.com/mkvesala/ESP32-Crowpanel-compass)
@@ -105,7 +105,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 **Fuel level (VDO sender + ADS1115):**
 1. ADS1115 channel 0 is sampled every 2 s in the main loop
 2. The HALMET constant current source (1 mA, CCS jumper on input A1) allows direct resistance measurement: R = V / 1 mA. Note: Hat Labs documentation states 10 mA but hardware measurement confirms 1 mA.
-3. Resistance is mapped linearly to fill ratio: 10 Ω = full, 180 Ω = empty (VDO European sender)
+3. Resistance is mapped linearly to fill ratio: 3 Ω = empty, 180 Ω = full (Wema/VDO European sender — resistance rises with fill level)
 4. Three-phase filtering pipeline eliminates wave-induced noise (signal/noise ratio in a single raw sample is ~1:50 000):
    - **Phase 1 (0-4 min):** median window filling — raw resistance sent immediately so data flows from boot
    - **Phase 2 (4 min):** EMA initialized to the first median value — no warm-up ramp
@@ -120,13 +120,13 @@ Connects to:
 ws://<server>:<port>/signalk/v1/stream?token=<optional>
 ```
 
-**Sends** with deadband filtering to avoid flooding the server with redundant updates:
+**Sends** unconditionally on independent fixed-interval timers (no deadband — every path is refreshed often enough that SignalK never sees it as stale):
 
 | SignalK path | Unit | Frequency | Source |
 |---|---|---|---|
-| `propulsion.0.exhaustTemperature` | Kelvin | ~1 s, or 60 s keepalive | DS18B20 |
-| `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s on change, or 60 s keepalive | VDO/ADS1115 |
-| `tanks.fuel.0.capacity` | m³ | once on connect | static (0.4 m³) |
+| `propulsion.0.exhaustTemperature` | Kelvin | ~1 s | DS18B20 |
+| `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
+| `tanks.fuel.0.capacity` | m³ | once, on first poll cycle after connect | static (0.4 m³) |
 
 Source name is auto-derived from the device MAC address: `esp32.halmet-XXYYZZ`.
 
@@ -136,7 +136,7 @@ WebSocket reconnects automatically with exponential back-off starting at ~2 s, d
 
 Broadcasts sensor data via ESP-NOW for other ESP32 devices, such as external displays (e.g. ESP32-Crowpanel-compass).
 
-**Sends** at ~3 s frequency:
+**Sends** unconditionally at ~3 s frequency (no deadband — caller controls the interval):
 - `HALMETEngineDelta` struct containing:
   - `exhaust_temp_k` — exhaust temperature in Kelvin
 - `HALMETTankDelta` struct containing:
@@ -153,7 +153,8 @@ Broadcasts sensor data via ESP-NOW for other ESP32 devices, such as external dis
 ### WiFi and OTA
 
 - WiFi state machine: `INIT → CONNECTING → CONNECTED`, with a ~90-second connection timeout and automatic fallback to `OFF` on failure or missing SSID
-- Auto-reconnect on dropped connection
+- **Static IP** — the device configures a fixed address via `WiFi.config()` (`WIFI_STATIC_IP` / `WIFI_GATEWAY` / `WIFI_SUBNET` in `secrets.h`), applied at boot and reapplied after every reconnect, since `WiFi.disconnect(true)` does not preserve the static configuration. Pick an address outside your router's DHCP pool.
+- **Hardened reconnect** — on connection loss, the WebSocket is closed and the STA interface is fully torn down (`WiFi.disconnect(true)` + 200 ms settle + `WiFi.setSleep(false)` + static IP reapplied) before reconnecting, instead of a bare disconnect/begin cycle that can leave the radio stuck or the WebSocket stale
 - ArduinoOTA enabled immediately after WiFi connects; hostname is set to the SignalK source name
 
 ### WiFi AP security
@@ -204,13 +205,13 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 | Sensor | Connection | HALMET header |
 |--------|-----------|---------------|
 | DS18B20 temperature | 1-Wire | 1-Wire header (GPIO4) |
-| VDO resistive fuel sender | Resistive, 10-180 Ω | Analog input A1 (CCS jumper enabled) |
+| VDO resistive fuel sender | Resistive, 3-180 Ω | Analog input A1 (CCS jumper enabled) |
 
 ### Bill of materials
 
 1. Hat Labs HALMET board
 2. DS18B20 1-Wire temperature sensor (waterproof probe recommended for exhaust)
-3. VDO European resistive fuel sender (10 Ω = full, 180 Ω = empty)
+3. Wema/VDO European resistive fuel sender (3 Ω = empty, 180 Ω = full)
 4. Wiring
 5. 12 V DC power supply (from vessel's electrical system)
 6. WiFi router providing wireless LAN AP
@@ -240,6 +241,9 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
    ```cpp
    inline constexpr const char* WIFI_SSID            = "your_wifi_ssid_here";
    inline constexpr const char* WIFI_PASS            = "your_wifi_password_here";
+   inline constexpr const char* WIFI_STATIC_IP       = "192.168.1.50"; // pick an address outside your router's DHCP pool
+   inline constexpr const char* WIFI_GATEWAY         = "192.168.1.1";
+   inline constexpr const char* WIFI_SUBNET          = "255.255.255.0";
    inline constexpr const char* SK_HOST              = "your_signalk_address_here";
    inline constexpr uint16_t    SK_PORT              = 3000; // replace with your SignalK server port
    inline constexpr const char* SK_TOKEN             = "your_signalk_auth_token_here";

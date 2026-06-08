@@ -36,6 +36,7 @@ void HALMETApplication::begin() {
     // WiFi — AP_STA mode required for ESP-NOW + WiFi coexistence
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, AP_PASS, 1 /*channel*/, 1 /*hidden*/, 1 /*max_connection*/);
+    this->applyStaticIP();
 
     // Deauth any AP intruder immediately; flag loop() to log the MAC
     WiFi.onEvent([this](arduino_event_id_t /*id*/, arduino_event_info_t info) {
@@ -106,7 +107,8 @@ void HALMETApplication::handleWifi(unsigned long now) {
                 //Serial.printf("[WIFI] Connected, IP %s, RSSI %d dBm\n",
                 //              WiFi.localIP().toString().c_str(), WiFi.RSSI());
                 initWifiServices();
-                _expn_retry_ms = WS_RETRY_MS;
+                _expn_retry_ms  = WS_RETRY_MS;
+                _next_ws_try_ms = now;
             }
             else if ((long)(now - _wifi_conn_start_ms) >= WIFI_TIMEOUT_MS) {
                 //Serial.println("[WIFI] Timeout — going offline");
@@ -126,8 +128,12 @@ void HALMETApplication::handleWifi(unsigned long now) {
         case WifiState::CONNECTED:
             if (!WiFi.isConnected()) {
                 //Serial.println("[WIFI] Lost — reconnecting");
+                _signalk.closeWebsocket();   // safe even if TCP is already down — available() returns immediately
                 _wifi_state = WifiState::CONNECTING;
-                WiFi.disconnect();
+                WiFi.disconnect(true);       // wifioff=true: proper STA teardown, AP_STA is restored on begin()
+                delay(200);                  // let the radio settle before restarting
+                WiFi.setSleep(false);        // STA teardown resets this — reapply
+                this->applyStaticIP();       // static config does not survive STA teardown
                 WiFi.begin(WIFI_SSID, WIFI_PASS);
                 _wifi_conn_start_ms = now;
             }
@@ -222,4 +228,15 @@ void HALMETApplication::initWifiServices() {
     ArduinoOTA.begin();
 
     _webui.begin();
+}
+
+// Static IP — must be (re)applied after every WiFi.mode()/disconnect(true), before WiFi.begin()
+void HALMETApplication::applyStaticIP() {
+    IPAddress ip, gateway, subnet;
+    ip.fromString(WIFI_STATIC_IP);
+    gateway.fromString(WIFI_GATEWAY);
+    subnet.fromString(WIFI_SUBNET);
+    if (!WiFi.config(ip, gateway, subnet, gateway)) { // gateway doubles as DNS — router proxies it
+        //Serial.println("[WIFI] static IP config failed — falling back to DHCP");
+    }
 }

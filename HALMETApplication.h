@@ -88,4 +88,5 @@ private:
     void handleESPNow(unsigned long now);
 
     void initWifiServices();
+    void applyStaticIP();
 };

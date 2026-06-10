@@ -174,13 +174,13 @@ void HALMETApplication::handleWebsocket(unsigned long now) {
     if (_wifi_state != WifiState::CONNECTED) return;
     _signalk.handleStatus();
 
-    if (!_signalk.isOpen() && (long)(now - _next_ws_try_ms) >= 0) {
-        //Serial.println("[SK] Connecting WebSocket...");
+    if (_signalk.isOpen()) {
+        _expn_retry_ms = WS_RETRY_MS;
+    } else if ((long)(now - _next_ws_try_ms) >= 0) {
         _signalk.connectWebsocket();
         _next_ws_try_ms = now + _expn_retry_ms;
-        _expn_retry_ms = min(_expn_retry_ms * 2UL, WS_RETRY_MAX_MS);
+        _expn_retry_ms  = min(_expn_retry_ms * 2, WS_RETRY_MAX_MS);
     }
-    if (_signalk.isOpen()) _expn_retry_ms = WS_RETRY_MS;
 }
 
 // Read VDO sender resistance and feed into processor filter

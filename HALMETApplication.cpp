@@ -169,13 +169,21 @@ void HALMETApplication::handleWebUI() {
     _webui.handleRequest();
 }
 
-// WebSocket poll and reconnect with exponential backoff
+// WebSocket poll, ping/pong liveness, and reconnect with exponential backoff
 void HALMETApplication::handleWebsocket(unsigned long now) {
     if (_wifi_state != WifiState::CONNECTED) return;
-    _signalk.handleStatus();
+    _signalk.handleStatus();   // poll() — also delivers GotPong that feeds isStale()
 
     if (_signalk.isOpen()) {
-        _expn_retry_ms = WS_RETRY_MS;
+        _expn_retry_ms = WS_RETRY_MS;   // reset backoff only when already open
+        if ((long)(now - _last_ping_ms) >= (long)WS_PING_MS) {
+            _signalk.ping();
+            _last_ping_ms = now;
+        }
+        if (_signalk.isStale(now)) {     // half-open TCP: open but no pong within timeout
+            //Serial.println("[SK] WS stale, reconnecting");
+            _signalk.closeWebsocket();   // next iterations reconnect via existing backoff
+        }
     } else if ((long)(now - _next_ws_try_ms) >= 0) {
         _signalk.connectWebsocket();
         _next_ws_try_ms = now + _expn_retry_ms;

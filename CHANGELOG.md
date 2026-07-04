@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-04
+
+### Added
+
+- `SignalKBroker::ping()` / `isStale()` — active WebSocket ping/pong liveness. `ping()` sends a client-initiated ping frame; the `GotPong` event refreshes `_last_pong_ms`. `HALMETApplication::handleWebsocket()` pings every `WS_PING_MS` (~10 s) while the socket is open.
+- Half-open TCP detection — `isStale()` reports a connection where `isOpen()` still returns `true` but no pong has arrived within `PONG_TIMEOUT_MS` (~30 s). `handleWebsocket()` then calls `closeWebsocket()` and lets the existing exponential backoff reconnect, recovering from a silently-dead SignalK server (e.g. macOS host power-saving) without dropping WiFi or ESP-NOW.
+
+### Changed
+
+- `SignalKBroker::connectWebsocket()` / `closeWebsocket()` / `onEventCallback()` — seed `_last_pong_ms` on connect and on `ConnectionOpened`, reset it to 0 on close, so liveness tracking starts clean on every (re)connection.
+- Liveness recovery is transport-only — a silently-dead connection is healed by a graceful WebSocket reconnect, never an `ESP.restart()`; WiFi, ESP-NOW, and uptime are preserved.
+
 ## [1.0.0] - 2026-07-04
 
 ### Added

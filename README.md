@@ -36,6 +36,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
+| v1.1.0 | main | WebSocket ping/pong liveness + graceful reconnect (half-open TCP detection). |
 | v1.0.0 | main | Initial release. DS18B20 exhaust temperature, VDO fuel level, SignalK WebSocket, ESP-NOW broadcast. |
 
 ## Classes
@@ -72,7 +73,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 - Owns: `WebsocketsClient`
 - Uses: `DS18B20Processor`, `VDOProcessor`
 - Owned by: `HALMETApplication`
-- Responsible for: WebSocket connection and delta transmission to SignalK server
+- Responsible for: WebSocket connection and delta transmission to SignalK server; active ping/pong liveness (`ping()` / `isStale()`) for half-open TCP detection
 
 **`ESPNowBroker`:**
 - Uses: `DS18B20Processor`, `VDOProcessor`
@@ -131,6 +132,8 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 Source name is auto-derived from the device MAC address: `esp32.halmet-XXYYZZ`.
 
 WebSocket reconnects automatically with exponential back-off starting at ~2 s, doubling on each failed attempt up to a ceiling of ~120 s, and resetting to the initial interval when the connection is restored.
+
+**Connection liveness (ping/pong):** while the socket is open the device sends a WebSocket ping every ~10 s and tracks the server's pong. If no pong arrives within ~30 s the connection is considered dead — even when `isOpen()` still reports `true`, as with a half-open TCP connection (e.g. the SignalK host freezing the link under power-saving) — and the socket is closed so the exponential back-off reconnects it. Recovery is transport-only; the device does not reboot.
 
 ### ESP-NOW communication
 

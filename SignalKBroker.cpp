@@ -36,6 +36,7 @@ bool SignalKBroker::connectWebsocket() {
     if (_ws_open) {
         //Serial.println("[SK] WebSocket connected");
         _capacity_sent = false;
+        _last_pong_ms = millis();   // seed liveness so a fresh socket is not flagged stale
         _ws.onMessage([this](WebsocketsMessage msg) {
             onMessageCallback(msg);
         });
@@ -52,6 +53,18 @@ bool SignalKBroker::connectWebsocket() {
 void SignalKBroker::closeWebsocket() {
     _ws.close();
     _ws_open = false;
+    _last_pong_ms = 0;
+}
+
+// Send a client-initiated ping frame to probe liveness
+void SignalKBroker::ping() {
+    if (_ws_open) _ws.ping();
+}
+
+// Half-open detection: open, has been connected, but no pong within timeout
+bool SignalKBroker::isStale(unsigned long now) const {
+    return _ws_open && _last_pong_ms != 0 &&
+           (long)(now - _last_pong_ms) >= (long)PONG_TIMEOUT_MS;
 }
 
 // Send exhaust temperature delta
@@ -135,6 +148,7 @@ void SignalKBroker::onMessageCallback(WebsocketsMessage /*msg*/) {}
 void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data*/) {
     switch (event) {
         case WebsocketsEvent::ConnectionOpened:
+            _last_pong_ms = millis();   // seed liveness on open
             break;
         case WebsocketsEvent::ConnectionClosed:
             //Serial.println("[SK] WebSocket closed");
@@ -143,6 +157,9 @@ void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data
             break;
         case WebsocketsEvent::GotPing:
             _ws.pong();
+            break;
+        case WebsocketsEvent::GotPong:
+            _last_pong_ms = millis();   // liveness refresh — feeds isStale()
             break;
         default:
             break;

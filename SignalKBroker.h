@@ -32,6 +32,9 @@ public:
     void sendTankDelta();      // tanks.fuel.0.currentLevel [ratio]
     void sendTankCapacity();   // tanks.fuel.0.capacity [m³] — once on connect
 
+    void ping();                             // send a client ping frame if open
+    bool isStale(unsigned long now) const;   // open but no pong within PONG_TIMEOUT_MS
+
     const char* getSignalKSource() { return _sk_source; }
     bool isOpen() const { return _ws_open; }
 
@@ -55,4 +58,8 @@ private:
     char _sk_source[32]  = {};
 
     bool _capacity_sent = false;
+
+    // Liveness — half-open TCP detection via client ping / server pong
+    static constexpr unsigned long PONG_TIMEOUT_MS = 29989UL;  // ~30 s w/o pong → stale
+    unsigned long _last_pong_ms = 0;   // millis() of last GotPong / open; 0 = not connected
 };

@@ -4,6 +4,7 @@
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
 #include <esp_mac.h>
+#include <memory>
 #include "DS18B20Processor.h"
 #include "VDOProcessor.h"
 
@@ -48,7 +49,7 @@ private:
 
     DS18B20Processor             &_ds18b20_proc;
     VDOProcessor                 &_vdo_proc;
-    websockets::WebsocketsClient  _ws;
+    std::unique_ptr<websockets::WebsocketsClient> _ws;  // fresh instance every connect
 
     StaticJsonDocument<512> _engine_doc;
     StaticJsonDocument<512> _tank_doc;

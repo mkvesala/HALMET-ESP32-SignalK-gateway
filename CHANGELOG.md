@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-16
+
+### Fixed
+
+- **Permanent WebSocket reconnect failure** - the gateway could lose its SignalK WebSocket connection after ~12–48 h of continuous operation and never recover until a manual reboot, even though WiFi stayed connected, heap and stack were healthy, the main loop kept running, and stale detection plus exponential backoff fired correctly; `SignalKBroker` reused a single lifetime `WebsocketsClient` (and thus the same underlying `WiFiClient` / lwIP socket) across every reconnect, so once that socket entered a stuck state every subsequent `connect()` reused the corrupted transport and failed forever. `connectWebsocket()` now constructs a brand-new `WebsocketsClient` on every attempt (registering callbacks before `connect()`) and destroys it immediately on a failed connect, guaranteeing each reconnect starts from a clean TCP / WebSocket state; the lwIP socket fd is released by the client destructor.
+
+### Changed
+
+- **`SignalKBroker` owns the WebSocket client via `std::unique_ptr`** - the client is created per connect and destroyed on teardown rather than kept as a permanent value member; `closeWebsocket()` now destroys the object (previously it only called `close()` and left it for reuse), all `_ws` operations (`poll()`, `ping()`, `pong()`, `send()`) are pointer-guarded, and the send-failure paths in `sendDoc()` and `sendTankCapacity()` route through `closeWebsocket()` so client destruction happens in exactly one place. The reconnect, exponential backoff, ping/pong liveness and SignalK protocol handling in `HALMETApplication::handleWebsocket()` are unchanged.
+
 ## [1.1.0] - 2026-07-04
 
 ### Added

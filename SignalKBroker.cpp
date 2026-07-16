@@ -23,42 +23,48 @@ bool SignalKBroker::begin() {
 // Keep WebSocket alive; send tank capacity once per connection after server hello is received
 void SignalKBroker::handleStatus() {
     if (!_ws_open) return;
-    _ws.poll();
+    if (_ws) _ws->poll();
     if (!_capacity_sent) {
         sendTankCapacity();
         _capacity_sent = true;
     }
 }
 
-// Connect WebSocket and register callbacks
+// Connect WebSocket — build a brand-new client so every attempt starts from a clean
+// TCP / lwIP socket state; a reused client can retain a stuck socket that never recovers
 bool SignalKBroker::connectWebsocket() {
-    _ws_open = _ws.connect(_sk_url);
+    _ws = std::make_unique<WebsocketsClient>();
+    _ws->onMessage([this](WebsocketsMessage msg) {
+        onMessageCallback(msg);
+    });
+    _ws->onEvent([this](WebsocketsEvent event, const String &data) {
+        onEventCallback(event, data);
+    });
+    _ws_open = _ws->connect(_sk_url);
     if (_ws_open) {
         //Serial.println("[SK] WebSocket connected");
         _capacity_sent = false;
         _last_pong_ms = millis();   // seed liveness so a fresh socket is not flagged stale
-        _ws.onMessage([this](WebsocketsMessage msg) {
-            onMessageCallback(msg);
-        });
-        _ws.onEvent([this](WebsocketsEvent event, const String &data) {
-            onEventCallback(event, data);
-        });
     } else {
         //Serial.println("[SK] WebSocket connect FAILED");
+        _ws.reset();                // failed connect → destroy immediately, free the socket
     }
     return _ws_open;
 }
 
-// Close WebSocket
+// Close WebSocket — destroy the client so no stale transport state survives
 void SignalKBroker::closeWebsocket() {
-    _ws.close();
+    if (_ws) {
+        _ws->close();
+        _ws.reset();
+    }
     _ws_open = false;
     _last_pong_ms = 0;
 }
 
 // Send a client-initiated ping frame to probe liveness
 void SignalKBroker::ping() {
-    if (_ws_open) _ws.ping();
+    if (_ws_open && _ws) _ws->ping();
 }
 
 // Half-open detection: open, has been connected, but no pong within timeout
@@ -69,7 +75,7 @@ bool SignalKBroker::isStale(unsigned long now) const {
 
 // Send exhaust temperature delta
 void SignalKBroker::sendEngineDelta() {
-    if (!_ws_open) return;
+    if (!_ws_open || !_ws) return;
     auto delta = _ds18b20_proc.getExhaustTempDelta();
     if (!validf(delta.exhaust_temp_k)) return;
 
@@ -88,7 +94,7 @@ void SignalKBroker::sendEngineDelta() {
 
 // Send fuel level ratio delta
 void SignalKBroker::sendTankDelta() {
-    if (!_ws_open) return;
+    if (!_ws_open || !_ws) return;
     auto delta = _vdo_proc.getFuelLevelDelta();
     if (!validf(delta.fuel_level_ratio)) return;
 
@@ -107,7 +113,7 @@ void SignalKBroker::sendTankDelta() {
 
 // Send static tank capacity once (called on WebSocket connect)
 void SignalKBroker::sendTankCapacity() {
-    if (!_ws_open) return;
+    if (!_ws_open || !_ws) return;
     StaticJsonDocument<256> doc;
     doc["context"] = "vessels.self";
     auto updates = doc.createNestedArray("updates");
@@ -120,8 +126,8 @@ void SignalKBroker::sendTankCapacity() {
 
     char buf[256];
     size_t n = serializeJson(doc, buf, sizeof(buf));
-    bool ok = _ws.send(buf, n);
-    if (!ok) { _ws.close(); _ws_open = false; }
+    bool ok = _ws->send(buf, n);
+    if (!ok) closeWebsocket();
 }
 
 // === P R I V A T E ===
@@ -156,7 +162,7 @@ void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data
             _capacity_sent = false;
             break;
         case WebsocketsEvent::GotPing:
-            _ws.pong();
+            if (_ws) _ws->pong();
             break;
         case WebsocketsEvent::GotPong:
             _last_pong_ms = millis();   // liveness refresh — feeds isStale()
@@ -170,7 +176,7 @@ void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data
 bool SignalKBroker::sendDoc(StaticJsonDocument<512> &doc) {
     char buf[640];
     size_t n = serializeJson(doc, buf, sizeof(buf));
-    bool ok = _ws.send(buf, n);
-    if (!ok) { _ws.close(); _ws_open = false; }
+    bool ok = _ws->send(buf, n);
+    if (!ok) closeWebsocket();
     return ok;
 }

@@ -4,9 +4,12 @@
 // === P U B L I C ===
 
 // Constructor
-ESPNowBroker::ESPNowBroker(DS18B20Processor &ds18b20_proc, VDOProcessor &vdo_proc)
+ESPNowBroker::ESPNowBroker(DS18B20Processor &ds18b20_proc,
+                           VDOProcessor     &vdo_proc,
+                           WaterProcessor   &water_proc)
     : _ds18b20_proc(ds18b20_proc)
     , _vdo_proc(vdo_proc)
+    , _water_proc(water_proc)
 {}
 
 // Initialize ESP-NOW with broadcast peer and callbacks
@@ -49,6 +52,19 @@ void ESPNowBroker::sendTankDelta() {
     ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_TANK_DELTA,
                        sizeof(ESPNow::HALMETTankDelta));
     pkt.payload.fuel_level_ratio = delta.fuel_level_ratio;
+    esp_now_send(BROADCAST_ADDR, reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
+}
+
+// Broadcast fresh water level ratio unconditionally (caller controls interval via ESPNOW_TX_MS)
+void ESPNowBroker::sendWaterDelta() {
+    if (!_initialized) return;
+    auto delta = _water_proc.getWaterLevelDelta();
+    if (!validf(delta.water_level_ratio)) return;
+
+    ESPNow::ESPNowPacket<ESPNow::HALMETWaterDelta> pkt;
+    ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_WATER_DELTA,
+                       sizeof(ESPNow::HALMETWaterDelta));
+    pkt.payload.water_level_ratio = delta.water_level_ratio;
     esp_now_send(BROADCAST_ADDR, reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
 }
 

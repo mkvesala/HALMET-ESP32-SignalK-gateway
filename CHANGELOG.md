@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-19
+
+### Added
+
+- `WaterSensor` — reads the fresh water tank resistive sender (0–190 Ω) via the ADS1115 ADC (I2C address 0x4B, channel 1 = HALMET analog input A2) in constant-current-source mode. The CCS jumper must be fitted for A2. It holds its own `Adafruit_ADS1115` instance rather than sharing `VDOSensor`'s: the driver keeps no channel state (the mux is encoded in every conversion's config write) and both sensors are read sequentially from the main loop, so the two instances cannot interleave. If the ADC is ever read from a FreeRTOS task or ISR, both must be replaced by one shared, mutex-guarded bus object.
+- `WaterProcessor` — converts sender resistance to a fresh water level ratio through the `WaterCal::OHMS` calibration table, since the tank is irregularly shaped and a two-point linear map (as used for fuel) would be wrong. The table stores measured resistance at each 10 % fill step with the ratio implicit in the row index, is validated at compile time by a `static_assert` requiring strictly increasing values at least `MIN_STEP_OHMS` (2 Ω ≈ 11 ADC LSB) apart, and interpolates piecewise-linearly with clamping — never extrapolation — outside the calibrated range. Filtering reuses the three-phase raw → median → EMA pipeline but is tuned faster than `VDOProcessor` (median-60, α=0.02, ~5 min settle vs ~20 min): water draw is bursty, and a shower can take 15 % of the tank in minutes. See `docs/water_level_calibration.md`.
+- `SignalKBroker::sendWaterDelta()` — sends `tanks.freshWater.0.currentLevel` [ratio] on its own `SK_WATER_TX_MS` (~4 s) timer. `sendTankCapacity()` now emits both `tanks.fuel.0.capacity` and `tanks.freshWater.0.capacity` (0.1 m³) as two entries in a single delta, so the existing `_capacity_sent` flag continues to govern both with no new state or reset sites; its scratch document and buffer grew from 256 to 384 bytes to fit the two-path message.
+- `ESPNowBroker::sendWaterDelta()` — broadcasts the new `HALMETWaterDelta` packet alongside the engine and tank deltas on the existing `ESPNOW_TX_MS` (~3 s) timer.
+- `espnow_protocol.h` — `ESPNowMsgType::HALMET_WATER_DELTA = 7` and the `HALMETWaterDelta` payload struct. A new type and struct rather than a new field on `HALMETTankDelta`, which would have changed that struct's size and corrupted decoding on every already-deployed receiver. Existing receivers ignore type 7 and need no reflash.
+- `HALMETApplication::handleWaterRead()` — reads the sender on `WATER_READ_MS` (2011 ms, offset from `VDO_READ_MS` = 2003 so the two ADC reads drift apart rather than phase-locking) and feeds `WaterProcessor`. Contains a commented-out `Serial.printf` that is the instrument used for the calibration procedure.
+
+### Changed
+
+- `HALMETPreferences` and `WebUIManager` constructors take a `WaterProcessor &`. Both remain skeletons — no `load()`/`save()` body, no routes.
+- `HALMETApplication::sensorOk()` deliberately still gates on `_ads_ok` alone. `WaterSensor::begin()` probes the same I2C address on the same chip as `VDOSensor::begin()`, so `_water_ok` carries no information the existing check lacks; folding it in would add a way to halt the board in `setup()` — killing exhaust temperature, fuel, SignalK and ESP-NOW — over a redundant probe. `_water_ok` still exists so the read handler skips cleanly instead of hammering a dead driver every 2 s.
+
+### Notes
+
+- `WaterSensor::readResistance()` intentionally does **not** mirror `VDOSensor`'s `MIN_VOLTAGE_V` low-side reject. The VDO sender's empty point is 3 Ω, but the water sender reads 0 Ω when empty, so rejecting low readings would discard the bottom ~2.6 % of the tank — exactly the about-to-run-dry region — leaving SignalK reporting a stale non-zero level indefinitely. The fault case for a constant-current source is an *open* circuit, which drives the input to the rail, so the guard is a high-side `MAX_OHMS` instead. A shorted sender reads ~0 Ω and is indistinguishable from empty; reporting empty is the safe direction to fail.
+- The calibration table ships as a placeholder linear 0→190 Ω ramp, so the firmware behaves as a plain linear map until the tank is calibrated.
+
 ## [1.2.0] - 2026-07-16
 
 ### Fixed

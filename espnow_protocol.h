@@ -17,6 +17,7 @@ namespace ESPNow {
         GNSS_DELTA           = 4,
         HALMET_ENGINE_DELTA  = 5,
         HALMET_TANK_DELTA    = 6,
+        HALMET_WATER_DELTA   = 7,
     };
 
     // === H E A D E R ===
@@ -84,6 +85,12 @@ namespace ESPNow {
     // Sent by HALMET-ESP32-SignalK-gateway
     struct HALMETTankDelta {
         float fuel_level_ratio;  // tanks.fuel.0.currentLevel [0.0..1.0]
+    };
+
+    // Fresh water tank data
+    // Sent by HALMET-ESP32-SignalK-gateway
+    struct HALMETWaterDelta {
+        float water_level_ratio;  // tanks.freshWater.0.currentLevel [0.0..1.0]
     };
 
     // === W R A P P E R ===

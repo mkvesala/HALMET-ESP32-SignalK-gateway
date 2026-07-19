@@ -4,6 +4,7 @@
 #include <WebServer.h>
 #include "DS18B20Processor.h"
 #include "VDOProcessor.h"
+#include "WaterProcessor.h"
 #include "HALMETPreferences.h"
 #include "SignalKBroker.h"
 
@@ -16,6 +17,7 @@ class WebUIManager {
 public:
     explicit WebUIManager(DS18B20Processor  &ds18b20_proc,
                           VDOProcessor      &vdo_proc,
+                          WaterProcessor    &water_proc,
                           HALMETPreferences &prefs,
                           SignalKBroker     &signalk);
 
@@ -25,6 +27,7 @@ public:
 private:
     DS18B20Processor  &_ds18b20_proc;
     VDOProcessor      &_vdo_proc;
+    WaterProcessor    &_water_proc;
     HALMETPreferences &_prefs;
     SignalKBroker     &_signalk;
     WebServer          _server{80};

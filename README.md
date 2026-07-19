@@ -9,7 +9,7 @@
 [![Protocol: ESP-NOW](https://img.shields.io/badge/Protocol-ESP--NOW-red)](https://www.espressif.com/en/solutions/low-power-solutions/esp-now)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor and fuel tank level via a VDO European resistive sender through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
+ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor, fuel tank level via a VDO European resistive sender, and fresh water tank level via a second resistive sender — both through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
 
 OTA firmware updates are enabled. Persistent configuration storage (NVS) and web UI are skeleton-implemented and reserved for future use.
 
@@ -20,6 +20,7 @@ Developed and tested on:
 - SignalK Server (2.23.0)
 - DS18B20 1-Wire temperature sensor (exhaust)
 - Wema/VDO European resistive fuel sender (3-180 Ω, low resistance = empty)
+- Resistive fresh water sender (0-190 Ω, low resistance = empty)
 
 Integrated via ESP-NOW to:
 - [ESP32-Crowpanel-compass](https://github.com/mkvesala/ESP32-Crowpanel-compass)
@@ -28,7 +29,7 @@ Integrated via ESP-NOW to:
 
 This is one of my individual digital boat projects. Use at your own risk. Not for safety-critical operations.
 
-1. I needed engine exhaust temperature and fuel tank level available in SignalK and on the vessel's ESP-NOW peer-to-peer network
+1. I needed engine exhaust temperature, fuel tank level and fresh water tank level available in SignalK and on the vessel's ESP-NOW peer-to-peer network
 2. The HALMET board provides galvanically isolated analog inputs with a built-in constant current source, making it well suited for resistive senders without an external gauge
 3. I wanted to continue building on the ESP32 gateway design pattern established in previous projects
 
@@ -36,7 +37,8 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
-| v1.2.0 | main | Latest release. WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
+| v1.3.0 | main | Latest release. Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. |
+| v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
 | v1.1.0 | main | WebSocket ping/pong liveness + graceful reconnect (half-open TCP detection). |
 | v1.0.0 | main | Initial release. DS18B20 exhaust temperature, VDO fuel level, SignalK WebSocket, ESP-NOW broadcast. |
 
@@ -68,31 +70,42 @@ Class diagram including the companion projects:
 - Owned by: `HALMETApplication`
 - Responsible for: three-phase filtering pipeline (raw → median 120 → EMA α=0.005) and linear mapping of sender resistance to fill ratio; see `docs/fuel_level_filtering.md`
 
+**`WaterSensor`:**
+- Owns: `Adafruit_ADS1115` (its own instance — the driver holds no channel state, and both analog sensors are read sequentially from the main loop)
+- Owned by: `HALMETApplication`
+- Responsible for: reading ADS1115 channel 1 (input A2) and converting the measured voltage to sender resistance in ohms. Unlike `VDOSensor` it accepts 0 Ω as a valid empty reading and guards the open-circuit fault case with a high-side `MAX_OHMS` instead
+
+**`WaterProcessor`:**
+- Owns: `WaterLevelDelta` (data struct), `WaterCal` calibration table, 60-sample circular buffer
+- Uses: `WaterSensor`
+- Owned by: `HALMETApplication`
+- Responsible for: three-phase filtering pipeline (raw → median 60 → EMA α=0.02) and piecewise-linear mapping of sender resistance to fill ratio through the measured calibration table, since the tank is irregularly shaped; see `docs/water_level_calibration.md`
+
 **`HALMETPreferences`:**
 - Owns: `Preferences`
-- Uses: `DS18B20Processor`, `VDOProcessor`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
 - Owned by: `HALMETApplication`
 - Responsible for: loading and saving data to ESP32 NVS — *skeleton, not implemented in this version*
 
 **`SignalKBroker`:**
 - Owns: `WebsocketsClient` (via `std::unique_ptr`, recreated fresh on every reconnect)
-- Uses: `DS18B20Processor`, `VDOProcessor`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
 - Owned by: `HALMETApplication`
 - Responsible for: WebSocket connection and delta transmission to SignalK server; active ping/pong liveness (`ping()` / `isStale()`) for half-open TCP detection
 
 **`ESPNowBroker`:**
-- Uses: `DS18B20Processor`, `VDOProcessor`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
 - Owned by: `HALMETApplication`
-- Responsible for: ESP-NOW broadcast of engine and tank data
+- Responsible for: ESP-NOW broadcast of engine, fuel tank and fresh water tank data
 
 **`WebUIManager`:**
 - Owns: `WebServer`
-- Uses: `DS18B20Processor`, `VDOProcessor`, `HALMETPreferences`, `SignalKBroker`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`
 - Owned by: `HALMETApplication`
 - Responsible for: HTTP web user interface — *skeleton, not implemented in this version*
 
 **`HALMETApplication`:**
-- Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
+- Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `WaterSensor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
 - Uses: `WifiState`
 - Responsible for: orchestrating everything within the main program; manages the DS18B20 FreeRTOS task, WiFi state machine, and all loop timers
 
@@ -119,6 +132,16 @@ Class diagram including the companion projects:
 
 See `docs/fuel_level_filtering.md` for full design rationale and parameter derivation.
 
+**Fresh water level (resistive sender + ADS1115):**
+1. ADS1115 channel 1 is sampled every ~2 s in the main loop, on a timer deliberately offset from the fuel read so the two ADC conversions drift apart rather than phase-locking
+2. Same constant current source principle as the fuel sender, with the CCS jumper on input A2
+3. The tank is **irregularly shaped**, so resistance is mapped through a **measured calibration table** (`WaterCal::OHMS`) rather than linearly: the tank is filled in 10 % steps and the sender resistance recorded at each step, with piecewise-linear interpolation between points. Readings outside the calibrated range clamp rather than extrapolate, and the table is validated at compile time by a `static_assert`
+4. Same three-phase filtering pipeline as fuel, but tuned faster — median(60) → EMA(α=0.02), ~5 min settle instead of ~20 min. Fuel burns continuously at a few litres per hour, but water draw is bursty: a shower can take 15 % of the tank in minutes, and a gauge lagging 20 minutes behind would be useless for deciding whether to refill
+
+Unlike the fuel sender, a reading of 0 Ω is treated as a **valid empty tank** rather than a failed read — rejecting low readings would freeze the reported level exactly when the tank is about to run dry. The fault case guarded against is instead an open circuit, which the constant current source drives to the rail.
+
+See `docs/water_level_calibration.md` for the calibration procedure and filter rationale.
+
 ### SignalK communication
 
 Connects to:
@@ -132,7 +155,11 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 |---|---|---|---|
 | `propulsion.0.exhaustTemperature` | Kelvin | ~1 s | DS18B20 |
 | `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
+| `tanks.freshWater.0.currentLevel` | ratio 0-1 | ~4 s | Water sender/ADS1115 |
 | `tanks.fuel.0.capacity` | m³ | once, on first poll cycle after connect | static (0.4 m³) |
+| `tanks.freshWater.0.capacity` | m³ | once, on first poll cycle after connect | static (0.1 m³) |
+
+Both capacities travel as two entries in a single delta, so one `_capacity_sent` flag governs both.
 
 Source name is auto-derived from the device MAC address: `esp32.halmet-XXYYZZ`.
 
@@ -149,6 +176,10 @@ Broadcasts sensor data via ESP-NOW for other ESP32 devices, such as external dis
   - `exhaust_temp_k` — exhaust temperature in Kelvin
 - `HALMETTankDelta` struct containing:
   - `fuel_level_ratio` — fuel level ratio 0.0-1.0
+- `HALMETWaterDelta` struct containing:
+  - `water_level_ratio` — fresh water level ratio 0.0-1.0
+
+New sensors get a new `ESPNowMsgType` value and their own payload struct rather than extra fields on an existing one, so already-deployed receivers keep decoding the old structs correctly and need no reflash.
 
 **Broadcast mode:** Uses broadcast address (FF:FF:FF:FF:FF:FF) — any ESP-NOW receiver on the same WiFi channel can listen.
 
@@ -187,12 +218,15 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 | `DS18B20Processor.h / .cpp` | Class `DS18B20Processor` — °C → K conversion, thread-safe delta |
 | `VDOSensor.h / .cpp` | Class `VDOSensor` — ADS1115 resistance measurement |
 | `VDOProcessor.h / .cpp` | Class `VDOProcessor` — median + EMA filtering, fill ratio |
+| `WaterSensor.h / .cpp` | Class `WaterSensor` — ADS1115 resistance measurement (channel 1) |
+| `WaterProcessor.h / .cpp` | Class `WaterProcessor` — calibration table, median + EMA filtering, fill ratio |
 | `HALMETPreferences.h / .cpp` | Class `HALMETPreferences` — NVS skeleton |
 | `SignalKBroker.h / .cpp` | Class `SignalKBroker` |
 | `ESPNowBroker.h / .cpp` | Class `ESPNowBroker` |
 | `WebUIManager.h / .cpp` | Class `WebUIManager` — HTTP skeleton |
 | `HALMETApplication.h / .cpp` | Class `HALMETApplication`, the "app" |
 | `docs/fuel_level_filtering.md` | Fuel level filter design rationale and parameter derivation |
+| `docs/water_level_calibration.md` | Fresh water tank calibration procedure and filter rationale |
 
 ## Hardware
 
@@ -214,16 +248,18 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 |--------|-----------|---------------|
 | DS18B20 temperature | 1-Wire | 1-Wire header (GPIO4) |
 | VDO resistive fuel sender | Resistive, 3-180 Ω | Analog input A1 (CCS jumper enabled) |
+| Fresh water resistive sender | Resistive, 0-190 Ω | Analog input A2 (CCS jumper enabled) |
 
 ### Bill of materials
 
 1. Hat Labs HALMET board
 2. DS18B20 1-Wire temperature sensor (waterproof probe recommended for exhaust)
 3. Wema/VDO European resistive fuel sender (3 Ω = empty, 180 Ω = full)
-4. Wiring
-5. 12 V DC power supply (from vessel's electrical system)
-6. WiFi router providing wireless LAN AP
-7. SignalK server running in LAN
+4. Resistive fresh water sender (0-190 Ω, low resistance = empty)
+5. Wiring
+6. 12 V DC power supply (from vessel's electrical system)
+7. WiFi router providing wireless LAN AP
+8. SignalK server running in LAN
 
 **No paid partnerships.**
 
@@ -261,11 +297,13 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
    inline constexpr const char* AP_PASS              = "your_ap_password_here"; // min 8 chars (WPA2)
    ```
 4. **Make sure that `secrets.h` is listed in your `.gitignore` file**
-5. Enable the CCS jumper on the HALMET board for analog input A1 (VDO sender)
+5. Enable the CCS jumper on the HALMET board for analog inputs A1 (VDO fuel sender) and A2 (fresh water sender)
 6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). The HALMET board has a built-in pull-up resistor on the 1-Wire line — no external pull-up is needed. Verify wiring against the HALMET schematic; incorrect wiring (e.g. swapped VCC/GND) will prevent the device from booting.
 7. Connect the VDO sender signal wire to HALMET analog input A1; connect sender ground to HALMET GND
-8. Connect and power up the HALMET board
-9. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
+8. Connect the fresh water sender signal wire to HALMET analog input A2; connect sender ground to HALMET GND
+9. Connect and power up the HALMET board
+10. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
+11. Calibrate the fresh water tank — see `docs/water_level_calibration.md`. Until calibrated, the level is reported against a placeholder linear 0-190 Ω table.
 
 ## Security
 

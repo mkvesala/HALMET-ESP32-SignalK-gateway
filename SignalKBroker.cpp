@@ -7,9 +7,12 @@ using namespace websockets;
 // === P U B L I C ===
 
 // Constructor
-SignalKBroker::SignalKBroker(DS18B20Processor &ds18b20_proc, VDOProcessor &vdo_proc)
+SignalKBroker::SignalKBroker(DS18B20Processor &ds18b20_proc,
+                             VDOProcessor     &vdo_proc,
+                             WaterProcessor   &water_proc)
     : _ds18b20_proc(ds18b20_proc)
     , _vdo_proc(vdo_proc)
+    , _water_proc(water_proc)
 {}
 
 // Set up URL and source, connect WebSocket
@@ -111,20 +114,45 @@ void SignalKBroker::sendTankDelta() {
     sendDoc(_tank_doc);
 }
 
-// Send static tank capacity once (called on WebSocket connect)
+// Send fresh water level ratio delta
+void SignalKBroker::sendWaterDelta() {
+    if (!_ws_open || !_ws) return;
+    auto delta = _water_proc.getWaterLevelDelta();
+    if (!validf(delta.water_level_ratio)) return;
+
+    _water_doc.clear();
+    _water_doc["context"] = "vessels.self";
+    auto updates = _water_doc.createNestedArray("updates");
+    auto up      = updates.createNestedObject();
+    up["$source"] = _sk_source;
+    auto values  = up.createNestedArray("values");
+    auto v       = values.createNestedObject();
+    v["path"]  = "tanks.freshWater.0.currentLevel";
+    v["value"] = delta.water_level_ratio;
+
+    sendDoc(_water_doc);
+}
+
+// Send static tank capacities once (called on WebSocket connect)
+// Both tanks travel in one delta, so the single _capacity_sent flag governs both
 void SignalKBroker::sendTankCapacity() {
     if (!_ws_open || !_ws) return;
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<384> doc;
     doc["context"] = "vessels.self";
     auto updates = doc.createNestedArray("updates");
     auto up      = updates.createNestedObject();
     up["$source"] = _sk_source;
     auto values  = up.createNestedArray("values");
-    auto v       = values.createNestedObject();
-    v["path"]  = "tanks.fuel.0.capacity";
-    v["value"] = _vdo_proc.getCapacityM3();
 
-    char buf[256];
+    auto vf      = values.createNestedObject();
+    vf["path"]  = "tanks.fuel.0.capacity";
+    vf["value"] = _vdo_proc.getCapacityM3();
+
+    auto vw      = values.createNestedObject();
+    vw["path"]  = "tanks.freshWater.0.capacity";
+    vw["value"] = _water_proc.getCapacityM3();
+
+    char buf[384];
     size_t n = serializeJson(doc, buf, sizeof(buf));
     bool ok = _ws->send(buf, n);
     if (!ok) closeWebsocket();

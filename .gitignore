@@ -1,3 +1,4 @@
+docs/*.docx
 docs/*.pdf
 secrets.h
 secrets.f*.h

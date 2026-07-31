@@ -24,12 +24,15 @@ public:
     // Returns sender resistance in ohms. Returns false on read failure.
     bool readResistance(float &ohms);
 
-private:
-    static constexpr uint8_t ADS_ADDR      = 0x4B;       // HALMET: ADDR pin tied to SCL
-    static constexpr uint8_t ADS_CHANNEL   = 1;          // A2 input = channel 1
+    // Public so WebUIManager can reconstruct volts/ADC counts from ohms and show
+    // the fault threshold, without holding a reference to the hardware layer.
     static constexpr float   CCS_CURRENT_A = 0.001f;     // 1 mA constant current source (measured on HALMET)
     static constexpr float   ADS_LSB_V     = 0.0001875f; // LSB size at ±6.144 V gain
     static constexpr float   MAX_OHMS      = 400.0f;     // above this: open circuit / sender disconnected
+
+private:
+    static constexpr uint8_t ADS_ADDR      = 0x4B;       // HALMET: ADDR pin tied to SCL
+    static constexpr uint8_t ADS_CHANNEL   = 1;          // A2 input = channel 1
 
     Adafruit_ADS1115 _ads;
     bool             _available = false;

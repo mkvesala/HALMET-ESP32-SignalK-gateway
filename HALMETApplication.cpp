@@ -172,6 +172,7 @@ void HALMETApplication::handleOTA() {
 
 // Web server
 void HALMETApplication::handleWebUI() {
+    if (!WEB_UI_ENABLED) return;
     if (_wifi_state != WifiState::CONNECTED) return;
     _webui.handleRequest();
 }
@@ -259,7 +260,7 @@ void HALMETApplication::initWifiServices() {
     ArduinoOTA.setPassword(OTA_PASS);
     ArduinoOTA.begin();
 
-    _webui.begin();
+    if (WEB_UI_ENABLED) _webui.begin();
 }
 
 // Static IP — must be (re)applied after every WiFi.mode()/disconnect(true), before WiFi.begin()

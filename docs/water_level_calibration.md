@@ -32,34 +32,82 @@ Mukana toimitetut arvot ovat **paikkamerkki** — tasainen 0→190 Ω ramppi. Fi
 ## Kalibroinnin esivalmistelut
 
 1. Kytke anturi A2:een ja asenna **CCS-jumpperi A2:lle**.
-2. Poista kommentti riviltä `HALMETApplication::handleWaterRead()`:
+2. Varmista että `HALMETApplication.h`:ssä on `WEB_UI_ENABLED = true` (oletus).
+3. Käännä ja lataa firmware, odota että WiFi-yhteys nousee.
+4. Avaa selaimessa `http://<WIFI_STATIC_IP>/` — puhelin riittää, ja se on veneessä
+   käytännöllisempi kuin kannettava USB-kaapelin päässä.
 
-   ```cpp
-   //Serial.printf("[WATER] %.1f ohm\n", ohms);   // uncomment for calibration
-   ```
-3. Käännä ja lataa firmware, avaa sarjamonitori **115200 baudia**.
-4. Lukeman pitäisi tulostua ~2 s välein.
+Sivu näyttää molemmat tankit ja päivittyy sekunnin välein:
+
+```
+                ohms    filt      mV    adc   ratio
+Water  A2      123.4   121.8   123.4    658   0.641
+Fuel   A1       87.1    86.9    87.1    465   0.474
+
+water:     60/60 samples, updated 0.4 s ago
+```
+
+**`filt`-sarake on se luku, joka taulukkoon kirjataan.** Se on laitteen oma
+mediaani→EMA-suodatettu arvo (τ ≈ 100 s) — sama, jolla mittarikin toimii. Se korvaa
+värähtelyn silmämääräisen keskikohdan arvioinnin: kun `samples` näyttää `60/60` ja
+`filt` on lakannut liikkumasta, arvo on valmis kirjattavaksi.
+
+> **Varaa aikaa noin tunti.** Sama aikavakio, joka tekee `filt`-arvosta luotettavan,
+> tekee siitä myös hitaan: jokaisen 10 L kaadon jälkeen se tarvitsee ~5 min asettuakseen
+> (perustelu vaiheissa 1–10). Kymmenen askelta on siis noin 50 min pelkkää odottelua.
+> Tämä ei ole työvaihe jonka voi kiirehtiä läpi — liian aikaisin kirjattu lukema tuottaa
+> pysyvästi väärän käyrän, joka ei näy missään tarkistuksessa.
 
 > **Vene on oltava suorassa ja paikallaan koko kalibroinnin ajan.** Kallistuma ja lainehdinta ovat juuri se häiriö, jonka suodatin on olemassa poistamaan — ja juuri se, joka pilaa mittaukset.
+
+> **Sivu toimii vain aluksen WiFin kautta.** `handleWebUI()` on portitettu
+> `WifiState::CONNECTED`-ehdolla, eikä laitteen oma SoftAP kelpaa varareitiksi: se on
+> piilotettu ja deauthaa jokaisen liittyjän välittömästi. mDNS:ää ei ole, joten
+> osoite on aina `secrets.h`:n `WIFI_STATIC_IP`. Jos WiFi ei ole käytettävissä, katso
+> §Varareitti: sarjamonitori.
 
 ---
 
 ## Mittausproseduuri
 
-**Vaihe 0 — tyhjä.** Tyhjennä tankki kokonaan. Odota 60 s. Lukema värähtelee muutaman kymmenesosan ohmin verran: kirjaa **värähtelyn silmämääräinen keskikohta**, älä yksittäistä näytettä. Kirjoita luku riville `0 %`.
+**Vaihe 0 — tyhjä.** Tyhjennä tankki kokonaan. Odota, kunnes `samples` näyttää `60/60` — noin **2 min** käynnistyksestä. Kirjaa `filt`-lukema riville `0 %`.
 
-**Vaiheet 1–10 — 10 litraa kerrallaan.** Lisää tasan 10 L kalibroidulla mitalla tai virtausmittarilla. Odota **vähintään 60 s**, jotta pinta tasaantuu ja uimuri asettuu. Kirjaa värähtelyn keskikohta vastaavalle riville. Toista riville `100 %` asti.
+Tämä ensimmäinen piste on nopea: kun ikkuna täyttyy, EMA alustetaan suoraan ensimmäiseen mediaaniin (vaihe 2), joten se ei ryömi paikalleen vaan on heti oikein. Seuraavat pisteet eivät ole.
+
+**Vaiheet 1–10 — 10 litraa kerrallaan.** Lisää tasan 10 L kalibroidulla mitalla tai virtausmittarilla. Odota **noin 5 minuuttia**. Kirjaa `filt` vastaavalle riville. Toista riville `100 %` asti.
+
+> **Miksi 5 min eikä minuutti.** Pinta tasaantuu ja uimuri asettuu minuutissa, mutta `filt` on EMA aikavakiolla τ ≈ 100 s, ja se seuraa askelta eksponentiaalisesti. 19 Ω:n askeleesta on 60 s kohdalla vielä **55 % jäljellä** (e^−0.6 ≈ 0.55), 2 min kohdalla 30 %, ja vasta ~5 min kohdalla alle 5 % eli alle 1 Ω. Minuutin odotuksella jokainen rivi jäisi systemaattisesti liian alas — ja koska virhe on samansuuntainen joka rivillä, se ei näy taulukon monotonisuustarkistuksessa vaan tuottaa pysyvästi väärän mutta täysin uskottavan näköisen käyrän.
+>
+> Käytännössä: odota kunnes `filt` on lakannut liikkumasta desimaalitasolla. Se on luotettavampi merkki kuin kello.
+
+> Sivun alalaidassa oleva `WaterCal::OHMS`-taulukko merkitsee `>`-merkillä sen välin, jolla nykyinen lukema on. Näet siis suoraan, mille riville olet mittaamassa arvoa ja mitä siinä nyt lukee. Huomaa että merkki seuraa `filt`-arvoa, joten se siirtyy vasta suodattimen perässä.
 
 > Tilavuuden tarkkuus on tässä tärkeämpää kuin ohmilukeman tarkkuus. Kaadon 10 %:n virhe jättää käyrään pysyvän mutkan, kun taas lukeman kohina keskiarvoistuu joka tapauksessa pois ajonaikaisessa suodatuksessa.
 
-**Vaihe 11 — `MAX_OHMS`.** Aseta `WaterSensor.h`:ssä `MAX_OHMS` noin **kaksinkertaiseksi täyden tankin lukemaan** nähden. Oletusarvo 400 Ω on varovainen lähtökohta; jos täysi tankki näyttää esim. 190 Ω, sopiva arvo on ~380 Ω.
+**Vaihe 11 — `MAX_OHMS`.** Aseta `WaterSensor.h`:ssä `MAX_OHMS` noin **kaksinkertaiseksi täyden tankin lukemaan** nähden. Oletusarvo 400 Ω on varovainen lähtökohta; jos täysi tankki näyttää esim. 190 Ω, sopiva arvo on ~380 Ω. Voimassa oleva arvo näkyy kalibrointisivulla rivillä `water open-circuit limit`.
 
 **Vaihe 12 — syötä ja käännä.** Muokkaa vain `WaterCal::OHMS`-taulukon ensimmäistä saraketta. Käännä uudelleen.
 
-- **Käännös onnistuu** → taulukko on monotoninen ja askeleet ≥ 2 Ω. Valmista. Kommentoi `printf` takaisin ja lataa firmware.
+- **Käännös onnistuu** → taulukko on monotoninen ja askeleet ≥ 2 Ω. Valmista. Lataa firmware ja aseta `WEB_UI_ENABLED = false`, jos et halua kalibrointisivua jäävän tuotantobuildiin.
 - **Käännös epäonnistuu** `tableIsValid`-assertioon → kaksi peräkkäistä riviä on yhtä suuria, väärinpäin tai alle 2 Ω etäisyydellä. Katso §Vianetsintä.
 
 **Vaihe 13 — tarkistus.** Varmista SignalK-palvelimen data browserista että `tanks.freshWater.0.currentLevel` on täydellä tankilla lähellä 1.0 ja `tanks.freshWater.0.capacity` on 0.1.
+
+---
+
+## Varareitti: sarjamonitori
+
+Jos WiFiä ei ole saatavilla, kalibrointisivu ei ole tavoitettavissa. Vanha reitti toimii
+edelleen: poista kommentti riviltä `HALMETApplication::handleWaterRead()`:
+
+```cpp
+//Serial.printf("[WATER] %.1f ohm\n", ohms);   // uncomment for calibration
+```
+
+Käännä, lataa ja avaa sarjamonitori **115200 baudia**; lukema tulostuu ~2 s välein.
+Huomaa että tämä tulostaa **suodattamattoman** raakalukeman — silloin joudut arvioimaan
+värähtelyn keskikohdan silmämääräisesti 60 s ajalta, mikä on juuri se työvaihe jonka
+kalibrointisivun `filt`-sarake poistaa.
 
 ---
 

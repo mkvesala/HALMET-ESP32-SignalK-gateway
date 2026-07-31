@@ -26,6 +26,13 @@ public:
     float getCapacityM3() const { return TANK_CAPACITY_M3; }
     bool available() const;
 
+    // Calibration/debug accessors — consumed by WebUIManager
+    float         getLastOhms() const      { return _last_ohms; }
+    float         getFilteredOhms() const  { return _ema_initialized ? _ema : NAN; }
+    int           getSampleCount() const   { return _sample_count; }
+    int           getWindowSize() const    { return MEDIAN_WINDOW; }
+    unsigned long getLastUpdateMs() const  { return _last_update_ms; }
+
 private:
     static constexpr int   MEDIAN_WINDOW    = 120;
     static constexpr float EMA_ALPHA        = 0.005f;
@@ -44,4 +51,10 @@ private:
     int   _sample_count           = 0;
     float _ema                    = 0.0f;
     bool  _ema_initialized        = false;
+
+    // Last accepted raw reading and its timestamp. A failed read never reaches
+    // updateLevel(), so a growing age is how a dead sender is told apart from
+    // a genuinely steady tank.
+    float         _last_ohms      = NAN;
+    unsigned long _last_update_ms = 0;
 };

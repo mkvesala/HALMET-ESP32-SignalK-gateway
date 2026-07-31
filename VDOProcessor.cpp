@@ -9,6 +9,9 @@ VDOProcessor::VDOProcessor(VDOSensor &sensor)
 
 // Three-phase filtering: raw → (window full) median → (first median) EMA init → EMA
 void VDOProcessor::updateLevel(float ohms) {
+    _last_ohms      = ohms;
+    _last_update_ms = millis();
+
     _samples[_sample_idx] = ohms;
     _sample_idx = (_sample_idx + 1) % MEDIAN_WINDOW;
     if (_sample_count < MEDIAN_WINDOW) _sample_count++;

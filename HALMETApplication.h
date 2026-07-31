@@ -40,6 +40,9 @@ public:
     bool sensorOk() const { return _ads_ok; }
 
 private:
+    // Feature flags
+    static constexpr bool WEB_UI_ENABLED = true;   // calibration/debug HTTP page — set false for production
+
     // Timing constants (prime-ish numbers to avoid harmonic collisions)
     static constexpr unsigned long VDO_READ_MS          = 2003;
     static constexpr unsigned long WATER_READ_MS        = 2011;

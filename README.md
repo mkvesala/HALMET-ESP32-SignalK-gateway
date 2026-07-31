@@ -11,7 +11,7 @@
 
 ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor, fuel tank level via a VDO European resistive sender, and fresh water tank level via a second resistive sender — both through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
 
-OTA firmware updates are enabled. Persistent configuration storage (NVS) and web UI are skeleton-implemented and reserved for future use.
+OTA firmware updates are enabled. A read-only calibration/debug web page is available for measuring sender resistance during tank calibration; persistent configuration storage (NVS) is skeleton-implemented and reserved for future use.
 
 Developed and tested on:
 - [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (ESP32-WROOM-32E, 16 MB flash)
@@ -37,7 +37,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
-| v1.3.0 | main | Latest release. Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. |
+| v1.3.0 | main | Latest release. Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`) that replaces the serial monitor while measuring the table. |
 | v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
 | v1.1.0 | main | WebSocket ping/pong liveness + graceful reconnect (half-open TCP detection). |
 | v1.0.0 | main | Initial release. DS18B20 exhaust temperature, VDO fuel level, SignalK WebSocket, ESP-NOW broadcast. |
@@ -102,7 +102,7 @@ Class diagram including the companion projects:
 - Owns: `WebServer`
 - Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`
 - Owned by: `HALMETApplication`
-- Responsible for: HTTP web user interface — *skeleton, not implemented in this version*
+- Responsible for: HTTP calibration/debug page (`/`, `/status`, `/cal`) — read-only, no authentication, gated by `HALMETApplication::WEB_UI_ENABLED`. Reachable over the STA interface only.
 
 **`HALMETApplication`:**
 - Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `WaterSensor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
@@ -223,7 +223,7 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 | `HALMETPreferences.h / .cpp` | Class `HALMETPreferences` — NVS skeleton |
 | `SignalKBroker.h / .cpp` | Class `SignalKBroker` |
 | `ESPNowBroker.h / .cpp` | Class `ESPNowBroker` |
-| `WebUIManager.h / .cpp` | Class `WebUIManager` — HTTP skeleton |
+| `WebUIManager.h / .cpp` | Class `WebUIManager` — HTTP calibration/debug page |
 | `HALMETApplication.h / .cpp` | Class `HALMETApplication`, the "app" |
 | `docs/fuel_level_filtering.md` | Fuel level filter design rationale and parameter derivation |
 | `docs/water_level_calibration.md` | Fresh water tank calibration procedure and filter rationale |

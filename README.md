@@ -79,7 +79,7 @@ Class diagram including the companion projects:
 - Owns: `WaterLevelDelta` (data struct), `WaterCal` calibration table, 60-sample circular buffer
 - Uses: `WaterSensor`
 - Owned by: `HALMETApplication`
-- Responsible for: three-phase filtering pipeline (raw → median 60 → EMA α=0.02) and piecewise-linear mapping of sender resistance to fill ratio through the measured calibration table, since the tank is irregularly shaped; see `docs/water_level_calibration.md`
+- Responsible for: three-phase filtering pipeline (raw → median 60 → EMA α=0.04) and piecewise-linear mapping of sender resistance to fill ratio through the measured calibration table, since the tank is irregularly shaped; see `docs/water_level_calibration.md`
 
 **`HALMETPreferences`:**
 - Owns: `Preferences`
@@ -136,7 +136,7 @@ See `docs/fuel_level_filtering.md` for full design rationale and parameter deriv
 1. ADS1115 channel 1 is sampled every ~2 s in the main loop, on a timer deliberately offset from the fuel read so the two ADC conversions drift apart rather than phase-locking
 2. Same constant current source principle as the fuel sender, with the CCS jumper on input A2
 3. The tank is **irregularly shaped**, so resistance is mapped through a **measured calibration table** (`WaterCal::OHMS`) rather than linearly: the tank is filled in 10 % steps and the sender resistance recorded at each step, with piecewise-linear interpolation between points. Readings outside the calibrated range clamp rather than extrapolate, and the table is validated at compile time by a `static_assert`
-4. Same three-phase filtering pipeline as fuel, but tuned faster — median(60) → EMA(α=0.02), ~5 min settle instead of ~20 min. Fuel burns continuously at a few litres per hour, but water draw is bursty: a shower can take 15 % of the tank in minutes, and a gauge lagging 20 minutes behind would be useless for deciding whether to refill
+4. Same three-phase filtering pipeline as fuel, but tuned much faster — median(60) → EMA(α=0.04, τ ≈ 50 s), ~2.5 min settle instead of ~20 min. Fuel burns continuously at a few litres per hour, but water draw is bursty: a shower can take 15 % of the tank in minutes, and a gauge lagging 20 minutes behind would be useless for deciding whether to refill
 
 Unlike the fuel sender, a reading of 0 Ω is treated as a **valid empty tank** rather than a failed read — rejecting low readings would freeze the reported level exactly when the tank is about to run dry. The fault case guarded against is instead an open circuit, which the constant current source drives to the rail.
 

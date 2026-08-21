@@ -90,13 +90,13 @@ water:     60/60 samples, updated 0.4 s ago
 ```
 
 **`filt`-sarake on se luku, joka taulukkoon kirjataan.** Se on laitteen oma
-mediaani→EMA-suodatettu arvo (τ ≈ 100 s) — sama, jolla mittarikin toimii. Se korvaa
+mediaani→EMA-suodatettu arvo (τ ≈ 50 s) — sama, jolla mittarikin toimii. Se korvaa
 värähtelyn silmämääräisen keskikohdan arvioinnin: kun `samples` näyttää `60/60` ja
 `filt` on lakannut liikkumasta, arvo on valmis kirjattavaksi.
 
 > **Varaa aikaa noin tunti.** Sama aikavakio, joka tekee `filt`-arvosta luotettavan,
-> tekee siitä myös hitaan: jokaisen kaadon tai valutuksen jälkeen se tarvitsee ~5 min
-> asettuakseen (perustelu vaiheessa 2). Kymmenkunta askelta on siis noin 50 min pelkkää odottelua.
+> tekee siitä myös hitaan: jokaisen kaadon tai valutuksen jälkeen se tarvitsee ~2,5 min
+> asettuakseen (perustelu vaiheessa 2). Kymmenkunta askelta on siis noin 25 min pelkkää odottelua.
 > Tämä ei ole työvaihe jonka voi kiirehtiä läpi — liian aikaisin kirjattu lukema tuottaa
 > pysyvästi väärän käyrän, joka ei näy missään tarkistuksessa.
 
@@ -120,11 +120,11 @@ Tämä ensimmäinen piste on nopea: kun ikkuna täyttyy, EMA alustetaan suoraan 
 
 **Vaihe 1 — löydä porras.** Valuta 5 L kerrallaan mitattuun astiaan. Keinuta venettä **ennen** jokaista asettumisjaksoa, älä sen jälkeen. Lukema pysyy arvossa 174,8 Ω useita askeleita — se on lähettimen ylin kontakti, ei mittausvirhe. Litramäärä, jolla lukema **ensimmäisen kerran putoaa alle 174,8 Ω**, on luukun alapinnan taso; nykyisellä tankilla se on 57,5 L ja lukema putoaa siinä suoraan arvoon 146,1 Ω.
 
-**Vaihe 2 — kirjaa käyrä portaan alapuolelta.** Portaan alapuolella ilmataskua ei enää synny, joten keinuttamista ei tarvita ja yksi lukema riittää. Jatka 5 L askelin tyhjään asti. Odota jokaisen valutuksen jälkeen **noin 5 minuuttia** ja kirjaa `filt` sitä litramäärää vastaavalle riville.
+**Vaihe 2 — kirjaa käyrä portaan alapuolelta.** Portaan alapuolella ilmataskua ei enää synny, joten keinuttamista ei tarvita ja yksi lukema riittää. Jatka 5 L askelin tyhjään asti. Odota jokaisen valutuksen jälkeen **noin 2,5 minuuttia** ja kirjaa `filt` sitä litramäärää vastaavalle riville.
 
 > **Kirjaa mittauksesi litroina, älä prosentteina.** Taulukon rivi *i* on `i × CAL_STEP_L` litraa. Jos mittauspisteesi eivät osu nykyiseen 2,5 L ruudukkoon, valitse `CAL_STEP_L` niin että ne osuvat — ks. §Tiheämpi tai harvempi taulukko. Rivit mittauspisteiden välissä täytetään lineaarisella interpolaatiolla ja merkitään `(i)`.
 
-> **Miksi 5 min eikä minuutti.** Pinta tasaantuu ja uimuri asettuu minuutissa, mutta `filt` on EMA aikavakiolla τ ≈ 100 s, ja se seuraa askelta eksponentiaalisesti. 19 Ω:n askeleesta on 60 s kohdalla vielä **55 % jäljellä** (e^−0.6 ≈ 0.55), 2 min kohdalla 30 %, ja vasta ~5 min kohdalla alle 5 % eli alle 1 Ω. Minuutin odotuksella jokainen rivi jäisi systemaattisesti liian alas — ja koska virhe on samansuuntainen joka rivillä, se ei näy taulukon monotonisuustarkistuksessa vaan tuottaa pysyvästi väärän mutta täysin uskottavan näköisen käyrän.
+> **Miksi 2,5 min eikä minuutti.** Pinta tasaantuu ja uimuri asettuu minuutissa, mutta `filt` on EMA aikavakiolla τ ≈ 50 s, ja se seuraa askelta eksponentiaalisesti. Lähettimen 14,5 Ω kontaktiaskeleesta on 60 s kohdalla vielä **30 % jäljellä** (e^−1,2 ≈ 0,30), 2 min kohdalla 9 %, ja vasta ~2,5 min kohdalla alle 5 % eli alle 0,7 Ω. Minuutin odotuksella jokainen rivi jäisi systemaattisesti liian alas — ja koska virhe on samansuuntainen joka rivillä, se ei näy taulukon monotonisuustarkistuksessa vaan tuottaa pysyvästi väärän mutta täysin uskottavan näköisen käyrän.
 >
 > Käytännössä: odota kunnes `filt` on lakannut liikkumasta desimaalitasolla. Se on luotettavampi merkki kuin kello.
 
@@ -193,7 +193,7 @@ Kolme kelvollista ratkaisua, paremmuusjärjestyksessä:
 | Parametri | Vesi | Polttoaine | Perustelu |
 |---|---|---|---|
 | `MEDIAN_WINDOW` | 60 (~2 min) | 120 (~4 min) | Kattaa lainehdinnan (sekunteja) yhtä hyvin, mutta puolittaa käynnistyksen sokean jakson |
-| `EMA_ALPHA` | 0.02 (τ ≈ 100 s) | 0.005 (τ ≈ 400 s) | Vedenkulutus on purskeista, ei jatkuvaa |
+| `EMA_ALPHA` | 0.04 (τ ≈ 50 s) | 0.005 (τ ≈ 400 s) | Vedenkulutus on purskeista, ei jatkuvaa |
 
 Polttoaineen erittäin hidas suodatus on perusteltu `docs/fuel_level_filtering.md`:ssä: kulutus on ~7 L/h eli 7 mm/h pinnanalenema, ja signaali/kohina-suhde yksittäisessä näytteessä on luokkaa 1:50 000.
 
@@ -205,7 +205,7 @@ Lainehdinnan amplitudi on kuitenkin samaa luokkaa, joten mediaani-ikkunan on yh�
 
 ## Käynnistyskäyttäytyminen
 
-Kylmäkäynnistyksen jälkeen lukema on **suodattamaton ensimmäiset ~2 minuuttia** (vaihe 1), minkä jälkeen se asettuu ~5 minuutin kuluessa. **Pieni porras 2 minuutin kohdalla on normaali**, ei vika: siinä siirrytään raakalukemasta mediaani+EMA-suodatettuun arvoon.
+Kylmäkäynnistyksen jälkeen lukema on **suodattamaton ensimmäiset ~2 minuuttia** (vaihe 1), minkä jälkeen se asettuu ~2,5 minuutin kuluessa. **Pieni porras 2 minuutin kohdalla on normaali**, ei vika: siinä siirrytään raakalukemasta mediaani+EMA-suodatettuun arvoon.
 
 ---
 

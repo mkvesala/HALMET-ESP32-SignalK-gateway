@@ -119,7 +119,7 @@ namespace WaterCal {
 // piecewise-linear WaterCal table. Litres are the primary quantity; the ratio is derived
 // from the tank's physical capacity, so a full tank reads 1.0 at the sender's nominal
 // maximum (in practice ~0.957, since 174.8 Ohm is the highest contact that exists).
-// Filtering: median window (60 samples, 2 s interval) -> EMA (alpha=0.02).
+// Filtering: median window (60 samples, 2 s interval) -> EMA (alpha=0.04, tau ~ 50 s).
 // Phase 1 (window filling): raw value is sent immediately.
 // Phase 2 (first full window): EMA is initialized to the first median value.
 // Phase 3 (normal operation): median -> EMA -> delta.
@@ -153,7 +153,7 @@ public:
 
 private:
     static constexpr int   MEDIAN_WINDOW      = 60;      // ~2 min at 2011 ms sampling
-    static constexpr float EMA_ALPHA          = 0.02f;   // tau ~ 100 s — water draw is bursty, unlike fuel burn
+    static constexpr float EMA_ALPHA          = 0.04f;   // tau ~ 50 s — water draw is bursty, unlike fuel burn
     static constexpr float FLOAT_CEILING_OHMS = 174.8f;  // sender's top contact — at or above this the volume is ambiguous
 
     float fillRatio(float ohms) const;

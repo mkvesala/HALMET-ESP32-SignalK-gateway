@@ -1,4 +1,5 @@
 #include "WaterProcessor.h"
+#include "helpers.h"
 
 // === P U B L I C ===
 
@@ -45,23 +46,35 @@ bool WaterProcessor::available() const {
     return _sensor.available();
 }
 
+// True when the reading sits at the sender's top contact, where 57.5..80 L are
+// indistinguishable. Advisory only — the reported level is unaffected.
+bool WaterProcessor::isAboveFloatCeiling() const {
+    float ohms = _ema_initialized ? _ema : _last_ohms;
+    return validf(ohms) && ohms >= FLOAT_CEILING_OHMS;
+}
+
 // === P R I V A T E ===
 
-// Piecewise-linear interpolation over the calibration table: resistance → fill ratio [0.0..1.0]
-float WaterProcessor::fillRatio(float ohms) const {
+// Piecewise-linear interpolation over the calibration table: resistance → litres
+float WaterProcessor::volumeLitres(float ohms) const {
     // Outside the calibrated range: clamp, do not extrapolate
     if (ohms <= WaterCal::OHMS[0])                        return 0.0f;
-    if (ohms >= WaterCal::OHMS[WaterCal::CAL_POINTS - 1]) return 1.0f;
+    if (ohms >= WaterCal::OHMS[WaterCal::CAL_POINTS - 1]) return WaterCal::CAL_MAX_L;
 
     for (int i = 0; i < WaterCal::CAL_POINTS - 1; i++) {
         if (ohms < WaterCal::OHMS[i + 1]) {
             float span = WaterCal::OHMS[i + 1] - WaterCal::OHMS[i];
-            if (span <= 0.0f) return (float)i * WaterCal::RATIO_STEP;  // unreachable while the static_assert holds
+            if (span <= 0.0f) return (float)i * WaterCal::CAL_STEP_L;  // unreachable while the static_assert holds
             float t = (ohms - WaterCal::OHMS[i]) / span;
-            return ((float)i + t) * WaterCal::RATIO_STEP;
+            return ((float)i + t) * WaterCal::CAL_STEP_L;
         }
     }
-    return 1.0f;
+    return WaterCal::CAL_MAX_L;
+}
+
+// Fill ratio against the tank's PHYSICAL capacity, not against the calibrated span
+float WaterProcessor::fillRatio(float ohms) const {
+    return volumeLitres(ohms) / WaterCal::TANK_CAPACITY_L;
 }
 
 // Copy samples, sort, return middle element

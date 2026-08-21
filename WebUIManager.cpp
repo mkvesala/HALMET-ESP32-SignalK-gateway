@@ -20,7 +20,7 @@ body{background:#101314;color:#d6dbdd;font:13px/1.5 ui-monospace,Menlo,Consolas,
 pre{white-space:pre;overflow-x:auto;margin:0}
 </style></head><body><pre id="d">Loading...</pre>
 <script>
-var CAL=[];
+var CAL=[],STEP=0,CAP=0;
 function z(n){return (n<10?'0':'')+n;}
 function hms(s){return z(Math.floor(s/3600))+':'+z(Math.floor(s/60)%60)+':'+z(s%60);}
 function f(v,d){return (v===null||v===undefined)?'--':Number(v).toFixed(d);}
@@ -43,9 +43,16 @@ function calBlock(v){
   for(var i=0;i<CAL.length;i++){
     var last=(i===CAL.length-1);
     var hit=(v!==null&&v!==undefined)&&v>=CAL[i]&&(last||v<CAL[i+1]);
-    s+=(hit?'> ':'  ')+p(Math.round(i*100/(CAL.length-1)),3)+' %   '+p(CAL[i].toFixed(1),7)+'\n';
+    s+=(hit?'> ':'  ')+p((i*STEP).toFixed(1),6)+' L   '+p(CAL[i].toFixed(1),7)+'\n';
   }
   return s;
+}
+function vol(t){
+  if(t.litres===null||t.litres===undefined)return '';
+  var s=pe('water vol:',11)+f(t.litres,1)+' L';
+  if(CAP)s+=' of '+f(CAP,0)+' L';
+  if(t.sat)s+='   SENDER CEILING - 57.5..80 L all read alike';
+  return s+'\n';
 }
 function upd(){
   fetch('/status').then(function(r){return r.json();}).then(function(j){
@@ -53,7 +60,7 @@ function upd(){
     s+=pe('',11)+p('ohms',8)+p('filt',8)+p('mV',8)+p('adc',7)+p('ratio',8)+'\n';
     s+=row('Water  A2',j.water);
     s+=row('Fuel   A1',j.fuel);
-    s+='\n'+note('water:',j.water)+note('fuel:',j.fuel);
+    s+='\n'+note('water:',j.water)+note('fuel:',j.fuel)+vol(j.water);
     s+='\nSignalK '+(j.sk_open?'connected':'disconnected')
       +'      heap '+Math.round(j.heap/1024)+' kB'
       +'      water open-circuit limit '+f(j.water_max_ohms,0)+' ohm\n';
@@ -63,7 +70,7 @@ function upd(){
     document.getElementById('d').textContent='fetch failed - device unreachable?';
   });
 }
-fetch('/cal').then(function(r){return r.json();}).then(function(a){CAL=a;}).catch(function(){});
+fetch('/cal').then(function(r){return r.json();}).then(function(a){CAL=a.ohms;STEP=a.step_l;CAP=a.cap_l;}).catch(function(){});
 setInterval(upd,1009);upd();
 </script></body></html>)HTML";
 
@@ -123,6 +130,11 @@ void WebUIManager::handleStatus() {
              now - _water_proc.getLastUpdateMs(),
              _water_proc.available());
 
+    // Water-only fields — fillTank() is shared with the fuel tank, which has no volume readout
+    float water_l = _water_proc.getVolumeLitres();
+    if (validf(water_l)) w["litres"] = water_l; else w["litres"] = nullptr;
+    w["sat"] = _water_proc.isAboveFloatCeiling();
+
     JsonObject f = _status_doc.createNestedObject("fuel");
     fillTank(f,
              _vdo_proc.getLastOhms(),
@@ -133,7 +145,7 @@ void WebUIManager::handleStatus() {
              now - _vdo_proc.getLastUpdateMs(),
              _vdo_proc.available());
 
-    char out[768];
+    char out[1024];
     size_t n = serializeJson(_status_doc, out, sizeof(out));
     if (n >= sizeof(out) - 1) {
         _server.send(500, "text/plain", "status buffer too small");
@@ -145,11 +157,13 @@ void WebUIManager::handleStatus() {
 
 // Calibration table — static data, fetched once per page load
 void WebUIManager::handleCal() {
-    StaticJsonDocument<256> doc;
-    JsonArray arr = doc.to<JsonArray>();
+    StaticJsonDocument<512> doc;
+    doc["step_l"] = WaterCal::CAL_STEP_L;
+    doc["cap_l"]  = WaterCal::TANK_CAPACITY_L;
+    JsonArray arr = doc.createNestedArray("ohms");
     for (int i = 0; i < WaterCal::CAL_POINTS; i++) arr.add(WaterCal::OHMS[i]);
 
-    char out[256];
+    char out[768];
     size_t n = serializeJson(doc, out, sizeof(out));
     if (n >= sizeof(out) - 1) {
         _server.send(500, "text/plain", "cal buffer too small");

@@ -17,7 +17,7 @@
 //
 //   GET /        static HTML + JS, served from flash in one send_P
 //   GET /status  live JSON, polled by the page once a second
-//   GET /cal     WaterCal::OHMS table, fetched once on page load
+//   GET /cal     {step_l, cap_l, ohms[]} from WaterCal, fetched once on page load
 //
 // Gated at compile time by HALMETApplication::WEB_UI_ENABLED.
 // Reachable over the STA interface only: handleWebUI() requires WifiState::CONNECTED,
@@ -50,5 +50,5 @@ private:
     SignalKBroker     &_signalk;
     WebServer          _server{80};
 
-    StaticJsonDocument<768> _status_doc;
+    StaticJsonDocument<1024> _status_doc;
 };

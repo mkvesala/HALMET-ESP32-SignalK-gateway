@@ -20,7 +20,7 @@ Developed and tested on:
 - SignalK Server (2.23.0)
 - DS18B20 1-Wire temperature sensor (exhaust)
 - Wema/VDO European resistive fuel sender (3-180 Ω, low resistance = empty)
-- Resistive fresh water sender (0-190 Ω, low resistance = empty)
+- Resistive fresh water sender (nominal 0-180 Ω, low resistance = empty)
 
 Integrated via ESP-NOW to:
 - [ESP32-Crowpanel-compass](https://github.com/mkvesala/ESP32-Crowpanel-compass)
@@ -157,7 +157,7 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 | `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
 | `tanks.freshWater.0.currentLevel` | ratio 0-1 | ~4 s | Water sender/ADS1115 |
 | `tanks.fuel.0.capacity` | m³ | once, on first poll cycle after connect | static (0.4 m³) |
-| `tanks.freshWater.0.capacity` | m³ | once, on first poll cycle after connect | static (0.1 m³) |
+| `tanks.freshWater.0.capacity` | m³ | once, on first poll cycle after connect | static (0.08 m³) |
 
 Both capacities travel as two entries in a single delta, so one `_capacity_sent` flag governs both.
 
@@ -248,14 +248,14 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 |--------|-----------|---------------|
 | DS18B20 temperature | 1-Wire | 1-Wire header (GPIO4) |
 | VDO resistive fuel sender | Resistive, 3-180 Ω | Analog input A1 (CCS jumper enabled) |
-| Fresh water resistive sender | Resistive, 0-190 Ω | Analog input A2 (CCS jumper enabled) |
+| Fresh water resistive sender | Resistive, nominal 0-180 Ω | Analog input A2 (CCS jumper enabled) |
 
 ### Bill of materials
 
 1. Hat Labs HALMET board
 2. DS18B20 1-Wire temperature sensor (waterproof probe recommended for exhaust)
 3. Wema/VDO European resistive fuel sender (3 Ω = empty, 180 Ω = full)
-4. Resistive fresh water sender (0-190 Ω, low resistance = empty)
+4. Resistive fresh water sender (nominal 0-180 Ω, low resistance = empty)
 5. Wiring
 6. 12 V DC power supply (from vessel's electrical system)
 7. WiFi router providing wireless LAN AP
@@ -303,7 +303,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 8. Connect the fresh water sender signal wire to HALMET analog input A2; connect sender ground to HALMET GND
 9. Connect and power up the HALMET board
 10. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
-11. Calibrate the fresh water tank — see `docs/water_level_calibration.md`. Until calibrated, the level is reported against a placeholder linear 0-190 Ω table.
+11. The fresh water tank is calibrated for Frida's 80 L tank — see `docs/water_level_calibration.md`. Note that `currentLevel` never exceeds ~0.957 and the 57.5-80 L range is not resolvable; both are sender limits, not bugs.
 
 ## Security
 

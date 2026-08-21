@@ -2,30 +2,72 @@
 
 ## Taustaa
 
-Fridan makeavesitankki: **100 L**, **epäsäännöllisen muotoinen**.
+Fridan makeavesitankki: **80 L**, muodoltaan **ylösalaisin oleva pyramidi** — se levenee ylöspäin.
 
 Polttoainetankki on säännöllisen muotoinen, joten `VDOProcessor` muuntaa vastuksen täyttöasteeksi kahden pisteen lineaarisella sovituksella (3 Ω = tyhjä, 180 Ω = täysi). Makeavesitankissa tämä ei toimi: poikkileikkausala vaihtelee korkeuden mukaan, joten sama vastuksen muutos vastaa eri litramäärää tankin eri kohdissa.
 
-Siksi `WaterProcessor` käyttää **mitattua kalibrointitaulukkoa**: tankki täytetään 10 %:n portaissa ja kussakin portaassa kirjataan anturin tuottama vastus. Ohjelma interpoloi lineaarisesti mittauspisteiden välillä.
+Siksi `WaterProcessor` käyttää **mitattua kalibrointitaulukkoa**: taulukossa on yksi vastuslukema jokaista 2,5 litran porrasta kohden, ja ohjelma interpoloi lineaarisesti pisteiden välillä. Mitattu ohmimäärä litraa kohden **pienenee** täytön myötä (~2,92 Ω/L välillä 0–30 L, ~1,73 Ω/L välillä 30–55 L), mikä on juuri sitä mitä ylöspäin levenevä tankki tarkoittaa.
 
-Anturi: resistiivinen 0–190 Ω lähetin, HALMETin analogiatulo **A2** (ADS1115 kanava 1), **CCS-jumpperi A2:lle asennettuna**.
+Anturi: resistiivinen lähetin nimellisalueella **0–180 Ω**, HALMETin analogiatulo **A2** (ADS1115 kanava 1), **CCS-jumpperi A2:lle asennettuna**.
+
+---
+
+## Tankin geometria ja anturin rajat
+
+Mittaukset 21.8.2026 (täyttö 0→80 L, sen jälkeen valutus 80→0 L) paljastivat kolme asiaa, jotka on ymmärrettävä ennen kuin taulukkoon koskee.
+
+### Lähetin on porrastettu, ei portaaton
+
+Kaikki kahdeksan mitattua pistettä osuvat sarjaan `R = 0,8 + 14,53·k`, missä k on kokonaisluku, ±0,4 Ω tarkkuudella:
+
+| k | 0 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 12 |
+|---|---|---|---|---|---|---|---|---|---|
+| Sovite Ω | 0,8 | 29,9 | 58,9 | 88,0 | 102,5 | 117,0 | 131,6 | 146,1 | 175,2 |
+| Mitattu Ω | 0,8 | 30,0 | 59,3 | 88,3 | 102,8 | 117,2 | 131,6 | 146,1 | 174,8 |
+
+Kyseessä on lankakierretty vastuskortti liukukoskettimella: se hyppää kontaktilta toiselle ~14,5 Ω askelin. **Anturin tilavuusresoluutio on siten ~5 L tankin alaosassa ja ~10 L yläosassa.** Sitä tarkempaa kalibrointia ei kannata tavoitella, eikä 0,1 Ω:n eroilla ole merkitystä.
+
+**174,8 Ω (k = 12) on kortin ylin kontakti.** Sitä korkeampaa lukemaa ei tule koskaan, mikä sopii yhteen nimellisen 0–180 Ω luokituksen kanssa.
+
+### Kaksi tasannetta, eri syistä — älä sekoita niitä
+
+**174,8 Ω pysyy vakiona 80 litrasta 57,5 litraan.** Tämä on yllä mainittu ylin kontakti: tankin koko yläkolmannes näkyy samana lukemana. Rivejä 57,5–80 L **ei siis voi mitata**, ja ne on johdettu laskennallisesti: suora mitatusta pisteestä (57,5 L, 146,1 Ω) lähettimen nimelliseen maksimiin (80 L, 180,0 Ω). Se vaatii kaltevuuden 1,507 Ω/L, joka on *pienempi* kuin sen alapuolella mitattu 1,732 Ω/L — täsmälleen mitä yhä leveneväksi jatkuva tankki edellyttää. Oletus 0–180 Ω lähettimestä siis tarkistuu mitattua muotoa vasten sen sijaan että se olisi oletettu sisään.
+
+**146,1 Ω on ilmataskun kattoraja.** 57,5 litran kohdalla pinta laskee sen luukun tasolle, johon anturi on kiinnitetty. Luukun alle muodostuu ilmatasku, joka estää kohoa nousemasta, ja lukema hyppää 174,8 → 146,1 ilman että tilavuus muuttuu lainkaan.
+
+Tätä porrasta **ei korjata ohjelmallisesti.** Jumissa oleva koho lukee aina liian vähän, koska ilmataskussa siihen ei kohdistu nostetta — vika kaatuu siis turvalliseen suuntaan. Mikään suodatin ei voi palauttaa tasoa, jolle koho ei koskaan noussut. Huippupitosuodatin (peak hold) korjaisi alilukeman mutta rikkoisi normaalin kulutusseurannan, koska taso laskee aidosti koko ajan. **Todellinen korjaus on mekaaninen:** pieni ilmareikä luukkulevyn korkeimpaan kohtaan, tai tankin huohotinlinjan otto tankin todelliseen lakipisteeseen.
+
+### Mitä tästä seuraa mittarille
+
+Alue **57,5–80 L raportoituu vakiona 76,6 litrana**, koska lähetin antaa koko alueella saman 174,8 Ω. Kun tankissa on todellisuudessa 58 L, mittari näyttää 76,6 L eli **yliarvio on pahimmillaan ~19 L**. Kun taso lopulta ylittää portaan, lukema putoaa kerralla 57,5 litraan.
+
+Alue **0–57,5 L on mitattu** ja tarkka lähettimen ~5 L porrasresoluution rajoissa. Se on se osa, jolla vedenriitto oikeasti ratkeaa.
 
 ---
 
 ## Miksi taulukko tallentaa vain vastuksen
 
-Taulukossa on yksi luku riviä kohden — täyttöaste on **rivin indeksi**, ei erillinen sarake:
+Taulukossa on yksi luku riviä kohden — **litramäärä on rivin indeksi**, ei erillinen sarake. Rivi *i* vastaa `i × CAL_STEP_L` litraa:
 
 ```cpp
 static constexpr float OHMS[CAL_POINTS] = {
-      0.0f,   //   0 %  —   0 L  (empty)
-     19.0f,   //  10 %  —  10 L
+      0.8f,   //   0.0 L  (m) empty
+      8.1f,   //   2.5 L  (i)
+     15.4f,   //   5.0 L  (i)
      ...
 ```
 
-Näin sarakkeita ei voi vahingossa saada epätahtiin keskenään, ja jokaisen 10 %:n täytön jälkeen muokattavana on täsmälleen yksi luku sillä rivillä, jonka kommentti sen nimeää.
+Näin sarakkeita ei voi vahingossa saada epätahtiin keskenään, ja jokaisen mittauksen jälkeen muokattavana on täsmälleen yksi luku sillä rivillä, jonka kommentti sen nimeää.
 
-Mukana toimitetut arvot ovat **paikkamerkki** — tasainen 0→190 Ω ramppi. Firmware toimii siis lineaarisena kuten polttoainepuoli, kunnes tankki on kalibroitu. Se ei koskaan lähde liikkeelle rikkinäisenä, ja jokainen rivi on ilmiselvästi pyöreä luku joka odottaa korvaamista.
+Rivin lopun merkintä kertoo arvon alkuperän:
+
+| Merkki | Merkitys |
+|---|---|
+| `(m)` | Mitattu veneessä |
+| `(i)` | Lineaarinen interpolaatio kahden mitatun rivin välillä |
+| `(t)` | Laskennallisesti johdettu — vain alue 57,5–80 L, ks. §Tankin geometria |
+
+**Huomaa että täyttöaste ei ole enää sama asia kuin rivin indeksi.** Suhde `currentLevel` lasketaan aina tankin fyysistä 80 litran kapasiteettia vasten, joten se saavuttaa 1,0 vasta lähettimen nimellisellä maksimilla 180 Ω. Käytännössä se ei ylitä **~0,957**, koska 174,8 Ω on korkein lukema jonka lähetin pystyy antamaan.
 
 ---
 
@@ -53,8 +95,8 @@ värähtelyn silmämääräisen keskikohdan arvioinnin: kun `samples` näyttää
 `filt` on lakannut liikkumasta, arvo on valmis kirjattavaksi.
 
 > **Varaa aikaa noin tunti.** Sama aikavakio, joka tekee `filt`-arvosta luotettavan,
-> tekee siitä myös hitaan: jokaisen 10 L kaadon jälkeen se tarvitsee ~5 min asettuakseen
-> (perustelu vaiheissa 1–10). Kymmenen askelta on siis noin 50 min pelkkää odottelua.
+> tekee siitä myös hitaan: jokaisen kaadon tai valutuksen jälkeen se tarvitsee ~5 min
+> asettuakseen (perustelu vaiheessa 2). Kymmenkunta askelta on siis noin 50 min pelkkää odottelua.
 > Tämä ei ole työvaihe jonka voi kiirehtiä läpi — liian aikaisin kirjattu lukema tuottaa
 > pysyvästi väärän käyrän, joka ei näy missään tarkistuksessa.
 
@@ -70,11 +112,17 @@ värähtelyn silmämääräisen keskikohdan arvioinnin: kun `samples` näyttää
 
 ## Mittausproseduuri
 
-**Vaihe 0 — tyhjä.** Tyhjennä tankki kokonaan. Odota, kunnes `samples` näyttää `60/60` — noin **2 min** käynnistyksestä. Kirjaa `filt`-lukema riville `0 %`.
+**Mittaa valuttamalla, älä täyttämällä.** Alkuperäinen menettely (täytä 10 L kerrallaan tyhjästä) toimii alueella 0–40 L, mutta ei kerro mitään yläpäästä: ilmatasku ehtii muodostua luukun alle jo täytön aikana ja pitää kohoa alhaalla, jolloin lukema jää liian matalaksi ilman että mikään tarkistus huomaa sitä. Valuttaminen täydestä tankista antaa saman käyrän ilman tätä ansaa, koska pinta on koko ajan laskemassa kohti kohoa eikä nousemassa sitä kohti.
+
+**Vaihe 0 — täysi.** Täytä tankki täyteen. **Keinuta venettä**, kunnes lukema nousee arvoon 174,8 Ω — se on merkki siitä että luukun alle jäänyt ilmatasku on purkautunut. Odota, kunnes `samples` näyttää `60/60` (noin **2 min** käynnistyksestä).
 
 Tämä ensimmäinen piste on nopea: kun ikkuna täyttyy, EMA alustetaan suoraan ensimmäiseen mediaaniin (vaihe 2), joten se ei ryömi paikalleen vaan on heti oikein. Seuraavat pisteet eivät ole.
 
-**Vaiheet 1–10 — 10 litraa kerrallaan.** Lisää tasan 10 L kalibroidulla mitalla tai virtausmittarilla. Odota **noin 5 minuuttia**. Kirjaa `filt` vastaavalle riville. Toista riville `100 %` asti.
+**Vaihe 1 — löydä porras.** Valuta 5 L kerrallaan mitattuun astiaan. Keinuta venettä **ennen** jokaista asettumisjaksoa, älä sen jälkeen. Lukema pysyy arvossa 174,8 Ω useita askeleita — se on lähettimen ylin kontakti, ei mittausvirhe. Litramäärä, jolla lukema **ensimmäisen kerran putoaa alle 174,8 Ω**, on luukun alapinnan taso; nykyisellä tankilla se on 57,5 L ja lukema putoaa siinä suoraan arvoon 146,1 Ω.
+
+**Vaihe 2 — kirjaa käyrä portaan alapuolelta.** Portaan alapuolella ilmataskua ei enää synny, joten keinuttamista ei tarvita ja yksi lukema riittää. Jatka 5 L askelin tyhjään asti. Odota jokaisen valutuksen jälkeen **noin 5 minuuttia** ja kirjaa `filt` sitä litramäärää vastaavalle riville.
+
+> **Kirjaa mittauksesi litroina, älä prosentteina.** Taulukon rivi *i* on `i × CAL_STEP_L` litraa. Jos mittauspisteesi eivät osu nykyiseen 2,5 L ruudukkoon, valitse `CAL_STEP_L` niin että ne osuvat — ks. §Tiheämpi tai harvempi taulukko. Rivit mittauspisteiden välissä täytetään lineaarisella interpolaatiolla ja merkitään `(i)`.
 
 > **Miksi 5 min eikä minuutti.** Pinta tasaantuu ja uimuri asettuu minuutissa, mutta `filt` on EMA aikavakiolla τ ≈ 100 s, ja se seuraa askelta eksponentiaalisesti. 19 Ω:n askeleesta on 60 s kohdalla vielä **55 % jäljellä** (e^−0.6 ≈ 0.55), 2 min kohdalla 30 %, ja vasta ~5 min kohdalla alle 5 % eli alle 1 Ω. Minuutin odotuksella jokainen rivi jäisi systemaattisesti liian alas — ja koska virhe on samansuuntainen joka rivillä, se ei näy taulukon monotonisuustarkistuksessa vaan tuottaa pysyvästi väärän mutta täysin uskottavan näköisen käyrän.
 >
@@ -84,14 +132,23 @@ Tämä ensimmäinen piste on nopea: kun ikkuna täyttyy, EMA alustetaan suoraan 
 
 > Tilavuuden tarkkuus on tässä tärkeämpää kuin ohmilukeman tarkkuus. Kaadon 10 %:n virhe jättää käyrään pysyvän mutkan, kun taas lukeman kohina keskiarvoistuu joka tapauksessa pois ajonaikaisessa suodatuksessa.
 
-**Vaihe 11 — `MAX_OHMS`.** Aseta `WaterSensor.h`:ssä `MAX_OHMS` noin **kaksinkertaiseksi täyden tankin lukemaan** nähden. Oletusarvo 400 Ω on varovainen lähtökohta; jos täysi tankki näyttää esim. 190 Ω, sopiva arvo on ~380 Ω. Voimassa oleva arvo näkyy kalibrointisivulla rivillä `water open-circuit limit`.
+**Vaihe 3 — `MAX_OHMS`.** Tarkista että `WaterSensor.h`:n `MAX_OHMS` on selvästi taulukon ylimmän rivin yläpuolella mutta kaukana avoimen piirin lukemasta. Avoin piiri ajaa tulon rajalle (6,144 V / 1 mA ≈ 6144 Ω), joten kynnyksen tarkka arvo ei ole kriittinen. Nykyinen 400 Ω toimii taulukon 180 Ω maksimin kanssa sellaisenaan. Voimassa oleva arvo näkyy kalibrointisivulla rivillä `water open-circuit limit`.
 
-**Vaihe 12 — syötä ja käännä.** Muokkaa vain `WaterCal::OHMS`-taulukon ensimmäistä saraketta. Käännä uudelleen.
+**Vaihe 4 — syötä ja käännä.** Muokkaa vain `WaterCal::OHMS`-taulukon ensimmäistä saraketta. Käännä uudelleen.
 
 - **Käännös onnistuu** → taulukko on monotoninen ja askeleet ≥ 2 Ω. Valmista. Lataa firmware ja aseta `WEB_UI_ENABLED = false`, jos et halua kalibrointisivua jäävän tuotantobuildiin.
 - **Käännös epäonnistuu** `tableIsValid`-assertioon → kaksi peräkkäistä riviä on yhtä suuria, väärinpäin tai alle 2 Ω etäisyydellä. Katso §Vianetsintä.
 
-**Vaihe 13 — tarkistus.** Varmista SignalK-palvelimen data browserista että `tanks.freshWater.0.currentLevel` on täydellä tankilla lähellä 1.0 ja `tanks.freshWater.0.capacity` on 0.1.
+**Vaihe 5 — tarkistus.** Varmista SignalK-palvelimen data browserista että `tanks.freshWater.0.capacity` on **0.08** ja että `tanks.freshWater.0.currentLevel` vastaa taulukon odotusarvoa:
+
+| Lukema | litraa | `currentLevel` |
+|---|---|---|
+| 0,8 Ω | 0,0 | 0,000 |
+| 102,8 Ω | 40,0 | 0,500 |
+| 146,1 Ω | 57,5 | 0,719 |
+| 174,8 Ω | 76,6 | 0,957 |
+
+**`currentLevel` ei siis saavuta arvoa 1,0 täydelläkään tankilla** — 174,8 Ω on korkein lukema jonka lähetin antaa. Tämä ei ole vika. Kalibrointisivun rivi `water vol:` näyttää saman litroina, ja merkintä `SENDER CEILING` kertoo että lukema on kattorajalla eikä erottele väliä 57,5–80 L.
 
 ---
 
@@ -127,6 +184,8 @@ Kolme kelvollista ratkaisua, paremmuusjärjestyksessä:
 2. **Keskiarvoista ristiriitaiset lukemat** ja erota rivit `MIN_STEP_OHMS`:n verran toisistaan.
 3. **Hyväksy anturin litteä kohta.** Jos uimurivarsi osuu väliseinään, tankki on aidosti erottelukyvytön sillä välillä. Erota rivit käsin — tietoisena siitä, että mittari arvaa tuolla alueella.
 
+> **Keino 3 kelpaa vain aitoon lähettimen tasanteeseen.** Jos tasanne johtuu ilmataskusta — tunnusmerkki: sama lukema toistuu useilla eri litramäärillä ja hyppää ylöspäin kun venettä keinuttaa — rivien erottelu käsin leipoo mittausvirheen taulukkoon pysyvästi. Mittaa uudelleen valuttamalla ja keinuttamalla, tai lyhennä taulukko mitatulle alueelle. Ks. §Tankin geometria ja anturin rajat.
+
 ---
 
 ## Suodatusparametrit — miksi nopeampi kuin polttoaineella
@@ -152,4 +211,11 @@ Kylmäkäynnistyksen jälkeen lukema on **suodattamaton ensimmäiset ~2 minuutti
 
 ## Tiheämpi tai harvempi taulukko
 
-Jos tankki vaatii paremman resoluution, muuta `CAL_POINTS` ja lisää rivejä — `RATIO_STEP` mukautuu automaattisesti. Ainoa ehdoton vaatimus on että **täyttöportaat ovat tasavälisiä**, koska täyttöaste johdetaan rivin indeksistä. Epätasaiset portaat vaatisivat toisen sarakkeen eikä tämä toteutus tue niitä.
+Jos tankki vaatii paremman resoluution, muuta `CAL_POINTS` ja `CAL_STEP_L` ja lisää rivejä — `CAL_MAX_L` mukautuu automaattisesti. Ainoa ehdoton vaatimus on että **portaat ovat tasavälisiä**, koska litramäärä johdetaan rivin indeksistä. Epätasaiset portaat vaatisivat toisen sarakkeen eikä tämä toteutus tue niitä.
+
+Nykyinen askel on **2,5 L**, koska se on karkein ruudukko jolla kaikki mitatut pisteet — myös portaan kohta 57,5 L — osuvat tasan omalle rivilleen. Karkeampi 5 L ruudukko siirtäisi ilmataskun kattorajan 146,1 Ω noin 1,5 litraa väärään paikkaan, ja se on arvo jossa lukema seisoo aina kun taskua on.
+
+Kaksi tarkistusta pitää huolen siitä ettei ruudukon muutos mene ohi:
+
+- `tableIsValid` vaatii että jokainen askel kasvaa vähintään `MIN_STEP_OHMS` (2 Ω) verran. Tiheämpi ruudukko tarkoittaa pienempiä ohmiaskelia, joten liian tiheä taulukko kaatuu käännöksessä. Nykyisen taulukon pienin askel on 3,6 Ω.
+- `CAL_MAX_L <= TANK_CAPACITY_L` estää taulukkoa ulottumasta tankin fyysisen tilavuuden yli.

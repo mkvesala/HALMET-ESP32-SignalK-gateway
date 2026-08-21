@@ -32,17 +32,17 @@ namespace WaterCal {
 
     // EDIT ONLY THE NUMBERS IN THE FIRST COLUMN
     static constexpr float OHMS[CAL_POINTS] = {
-          0.0f,   //   0 %  —   0 L  (empty)
-         19.0f,   //  10 %  —  10 L
-         38.0f,   //  20 %  —  20 L
-         57.0f,   //  30 %  —  30 L
-         76.0f,   //  40 %  —  40 L
-         95.0f,   //  50 %  —  50 L
-        114.0f,   //  60 %  —  60 L
-        133.0f,   //  70 %  —  70 L
-        152.0f,   //  80 %  —  80 L
-        171.0f,   //  90 %  —  90 L
-        190.0f,   // 100 %  — 100 L  (full)
+          0.8f,   //   0 %  —   0 L  (empty)
+         30.0f,   //  10 %  —  10 L
+         59.3f,   //  20 %  —  20 L
+         88.3f,   //  30 %  —  30 L
+        102.8f,   //  40 %  —  40 L
+        146.1f,   //  50 %  —  50 L
+        146.1f,   //  60 %  —  60 L
+        146.1f,   //  70 %  —  70 L
+        146.1f,   //  80 %  —  80 L (FULL - tank is ONLY 80 L, not 100 L)
+        400.0f,   //  90 %  —  90 L (IMPOSSIBLE)
+        400.0f,   // 100 %  — 100 L (IMPOSSIBLE)
     };
 
     static constexpr float RATIO_STEP = 1.0f / (float)(CAL_POINTS - 1);

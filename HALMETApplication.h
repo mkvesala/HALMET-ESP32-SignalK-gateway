@@ -41,7 +41,7 @@ public:
 
 private:
     // Feature flags
-    static constexpr bool WEB_UI_ENABLED = true;   // calibration/debug HTTP page — set false for production
+    static constexpr bool WEB_UI_ENABLED = false;   // calibration/debug HTTP page — set false for production
 
     // Timing constants (prime-ish numbers to avoid harmonic collisions)
     static constexpr unsigned long VDO_READ_MS          = 2003;

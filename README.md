@@ -11,7 +11,7 @@
 
 ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor, fuel tank level via a VDO European resistive sender, and fresh water tank level via a second resistive sender — both through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
 
-OTA firmware updates are enabled. A read-only calibration/debug web page is available for measuring sender resistance during tank calibration; persistent configuration storage (NVS) is skeleton-implemented and reserved for future use.
+OTA firmware updates are enabled. A read-only calibration/debug web page is included for measuring sender resistance during tank calibration; it is compiled out by default (`WEB_UI_ENABLED = false`) and is enabled only while calibrating. Persistent configuration storage (NVS) is skeleton-implemented and reserved for future use.
 
 Developed and tested on:
 - [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (ESP32-WROOM-32E, 16 MB flash)
@@ -37,7 +37,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
-| v1.3.0 | main | Latest release. Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`) that replaces the serial monitor while measuring the table. |
+| v1.3.0 | main | Latest release. Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`, off by default) that replaces the serial monitor while measuring the table. |
 | v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
 | v1.1.0 | main | WebSocket ping/pong liveness + graceful reconnect (half-open TCP detection). |
 | v1.0.0 | main | Initial release. DS18B20 exhaust temperature, VDO fuel level, SignalK WebSocket, ESP-NOW broadcast. |
@@ -102,7 +102,7 @@ Class diagram including the companion projects:
 - Owns: `WebServer`
 - Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`
 - Owned by: `HALMETApplication`
-- Responsible for: HTTP calibration/debug page (`/`, `/status`, `/cal`) — read-only, no authentication, gated by `HALMETApplication::WEB_UI_ENABLED`. Reachable over the STA interface only.
+- Responsible for: HTTP calibration/debug page (`/`, `/status`, `/cal`) — read-only, no authentication, gated by `HALMETApplication::WEB_UI_ENABLED`, which ships as `false` so the page is compiled out of a production build. Reachable over the STA interface only.
 
 **`HALMETApplication`:**
 - Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `WaterSensor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
@@ -135,7 +135,7 @@ See `docs/fuel_level_filtering.md` for full design rationale and parameter deriv
 **Fresh water level (resistive sender + ADS1115):**
 1. ADS1115 channel 1 is sampled every ~2 s in the main loop, on a timer deliberately offset from the fuel read so the two ADC conversions drift apart rather than phase-locking
 2. Same constant current source principle as the fuel sender, with the CCS jumper on input A2
-3. The tank is **irregularly shaped**, so resistance is mapped through a **measured calibration table** (`WaterCal::OHMS`) rather than linearly: the tank is filled in 10 % steps and the sender resistance recorded at each step, with piecewise-linear interpolation between points. Readings outside the calibrated range clamp rather than extrapolate, and the table is validated at compile time by a `static_assert`
+3. The tank is **irregularly shaped**, so resistance is mapped through a **measured calibration table** (`WaterCal::OHMS`) rather than linearly: the tank is drained in 5 L steps and the settled sender resistance recorded against volume, on a 2.5 L table grid (33 rows, 0-80 L) whose row index carries the volume, with piecewise-linear interpolation between points. Readings outside the calibrated range clamp rather than extrapolate, and the table is validated at compile time by a `static_assert`
 4. Same three-phase filtering pipeline as fuel, but tuned much faster — median(60) → EMA(α=0.04, τ ≈ 50 s), ~2.5 min settle instead of ~20 min. Fuel burns continuously at a few litres per hour, but water draw is bursty: a shower can take 15 % of the tank in minutes, and a gauge lagging 20 minutes behind would be useless for deciding whether to refill
 
 Unlike the fuel sender, a reading of 0 Ω is treated as a **valid empty tank** rather than a failed read — rejecting low readings would freeze the reported level exactly when the tank is about to run dry. The fault case guarded against is instead an open circuit, which the constant current source drives to the rail.

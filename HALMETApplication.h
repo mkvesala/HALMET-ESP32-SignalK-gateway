@@ -15,6 +15,8 @@
 #include "VDOProcessor.h"
 #include "WaterSensor.h"
 #include "WaterProcessor.h"
+#include "OilSensor.h"
+#include "OilProcessor.h"
 #include "HALMETPreferences.h"
 #include "SignalKBroker.h"
 #include "ESPNowBroker.h"
@@ -26,6 +28,7 @@
 // DS18B20 reads via FreeRTOS task (750 ms blocking conversion).
 // VDO/ADS1115 reads via 2 s timer in the main loop.
 // Water/ADS1115 reads via 2 s timer in the main loop (same chip, channel 1).
+// Oil pressure/ADS1115 reads via 0.5 s timer in the main loop (same chip, channel 2, passive).
 
 class HALMETApplication {
 public:
@@ -37,6 +40,7 @@ public:
     // ADS1115 is critical (onboard hardware). DS18B20 missing logs warning but does not halt.
     // WaterSensor shares the same ADS1115 chip: _water_ok is a redundant probe of the same
     // I2C address, so it gates only the water read handler and never halts the board.
+    // _oil_ok follows the same rule for the oil pressure read handler.
     bool sensorOk() const { return _ads_ok; }
 
 private:
@@ -46,9 +50,11 @@ private:
     // Timing constants (prime-ish numbers to avoid harmonic collisions)
     static constexpr unsigned long VDO_READ_MS          = 2003;
     static constexpr unsigned long WATER_READ_MS        = 2011;
+    static constexpr unsigned long OIL_READ_MS          = 499;
     static constexpr unsigned long SK_ENGINE_TX_MS      = 1009;
     static constexpr unsigned long SK_TANK_TX_MS        = 2999;
     static constexpr unsigned long SK_WATER_TX_MS       = 4001;
+    static constexpr unsigned long SK_OIL_TX_MS         = 1013;
     static constexpr unsigned long ESPNOW_TX_MS         = 3011;
     static constexpr unsigned long WIFI_STATUS_CHECK_MS = 503;
     static constexpr unsigned long WIFI_TIMEOUT_MS      = 90001;
@@ -59,9 +65,11 @@ private:
     // Timers
     unsigned long _last_vdo_read_ms   = 0;
     unsigned long _last_water_read_ms = 0;
+    unsigned long _last_oil_read_ms   = 0;
     unsigned long _last_sk_engine_ms  = 0;
     unsigned long _last_sk_tank_ms    = 0;
     unsigned long _last_sk_water_ms   = 0;
+    unsigned long _last_sk_oil_ms     = 0;
     unsigned long _last_espnow_ms     = 0;
     unsigned long _wifi_last_check_ms = 0;
     unsigned long _wifi_conn_start_ms = 0;
@@ -71,6 +79,7 @@ private:
 
     bool      _ads_ok                    = false;
     bool      _water_ok                  = false;
+    bool      _oil_ok                    = false;
     bool      _ds18_ok                   = false;
     bool      _wifi_services_initialized = false;
     WifiState _wifi_state                = WifiState::INIT;
@@ -85,6 +94,8 @@ private:
     VDOProcessor      _vdo_proc;
     WaterSensor       _water;
     WaterProcessor    _water_proc;
+    OilSensor         _oil;
+    OilProcessor      _oil_proc;
     HALMETPreferences _prefs;
     SignalKBroker     _signalk;
     ESPNowBroker      _espnow;
@@ -102,6 +113,7 @@ private:
     void handleWebsocket(unsigned long now);
     void handleVDORead(unsigned long now);
     void handleWaterRead(unsigned long now);
+    void handleOilRead(unsigned long now);
     void handleSignalK(unsigned long now);
     void handleESPNow(unsigned long now);
 

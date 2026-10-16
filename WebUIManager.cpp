@@ -54,6 +54,16 @@ function vol(t){
   if(t.sat)s+='   SENDER CEILING - 57.5..80 L all read alike';
   return s+'\n';
 }
+function oil(o){
+  var s=pe('Oil    A3',11)+p(f(o.volts,3),8)+' V'+p(f(o.ohms,1),8)+p(f(o.filt,1),8)+' ohm'
+        +p(f(o.bar,2),7)+' bar\n';
+  s+=pe('oil:',11)+'V read '+f(o.v_age_ms/1000,1)+' s ago, accepted '+f(o.age_ms/1000,1)+' s ago';
+  if(!o.ok)s+='   NO SENSOR';
+  else if(!o.cal)s+='   UNCALIBRATED - not published';
+  else if(o.age_ms>5000)s+='   STALE - sender open / gauge off?';
+  s+='\n'+pe('',11)+'model V_OC '+f(o.v_oc,3)+' V   R_TH '+f(o.r_th,1)+' ohm\n';
+  return s;
+}
 function upd(){
   fetch('/status').then(function(r){return r.json();}).then(function(j){
     var s='HALMET calibration       fw '+j.version+'   up '+hms(j.uptime_s)+'\n\n';
@@ -61,6 +71,7 @@ function upd(){
     s+=row('Water  A2',j.water);
     s+=row('Fuel   A1',j.fuel);
     s+='\n'+note('water:',j.water)+note('fuel:',j.fuel)+vol(j.water);
+    s+='\n'+oil(j.oil);
     s+='\nSignalK '+(j.sk_open?'connected':'disconnected')
       +'      heap '+Math.round(j.heap/1024)+' kB'
       +'      water open-circuit limit '+f(j.water_max_ohms,0)+' ohm\n';
@@ -80,11 +91,13 @@ setInterval(upd,1009);upd();
 WebUIManager::WebUIManager(DS18B20Processor  &ds18b20_proc,
                            VDOProcessor      &vdo_proc,
                            WaterProcessor    &water_proc,
+                           OilProcessor      &oil_proc,
                            HALMETPreferences &prefs,
                            SignalKBroker     &signalk)
     : _ds18b20_proc(ds18b20_proc)
     , _vdo_proc(vdo_proc)
     , _water_proc(water_proc)
+    , _oil_proc(oil_proc)
     , _prefs(prefs)
     , _signalk(signalk)
 {}
@@ -145,6 +158,8 @@ void WebUIManager::handleStatus() {
              now - _vdo_proc.getLastUpdateMs(),
              _vdo_proc.available());
 
+    fillOil(_status_doc.createNestedObject("oil"), now);
+
     char out[1024];
     size_t n = serializeJson(_status_doc, out, sizeof(out));
     if (n >= sizeof(out) - 1) {
@@ -170,6 +185,25 @@ void WebUIManager::handleCal() {
         return;
     }
     _server.send(200, "application/json; charset=utf-8", out);
+}
+
+// Oil object. Volts are every reading (the open-circuit V_OC is a rejected one);
+// ohms/bar are the last ACCEPTED values, aged by age_ms.
+void WebUIManager::fillOil(JsonObject o, unsigned long now) {
+    float v    = _oil_proc.getLastVolts();
+    float ohms = _oil_proc.getLastOhms();
+    float filt = _oil_proc.getFilteredOhms();
+    float bar  = _oil_proc.getPressureBar();
+    if (validf(v))    o["volts"] = v;    else o["volts"] = nullptr;
+    if (validf(ohms)) o["ohms"]  = ohms; else o["ohms"]  = nullptr;
+    if (validf(filt)) o["filt"]  = filt; else o["filt"]  = nullptr;
+    if (validf(bar))  o["bar"]   = bar;  else o["bar"]   = nullptr;
+    o["v_age_ms"] = now - _oil_proc.getLastVoltsMs();
+    o["age_ms"]   = now - _oil_proc.getLastUpdateMs();
+    o["v_oc"]     = (float)OilCal::V_OC;   // cast: avoids odr-using the constexpr member
+    o["r_th"]     = (float)OilCal::R_TH;
+    o["cal"]      = _oil_proc.isCalibrated();
+    o["ok"]       = _oil_proc.available();
 }
 
 // One tank object. Volts and ADC counts are RECONSTRUCTED from ohms, not resampled —

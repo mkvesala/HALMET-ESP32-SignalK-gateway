@@ -6,6 +6,7 @@
 #include "DS18B20Processor.h"
 #include "VDOProcessor.h"
 #include "WaterProcessor.h"
+#include "OilProcessor.h"
 #include "HALMETPreferences.h"
 #include "SignalKBroker.h"
 
@@ -13,7 +14,8 @@
 //
 // Calibration/debug HTTP page — no authentication, no settings, read-only.
 // Exists to replace the serial monitor while measuring sender resistance at known
-// fill levels (see docs/water_level_calibration.md).
+// fill levels (see docs/water_level_calibration.md), and while measuring the oil
+// pressure gauge's V_OC / R_TH (see docs/oil_pressure.md).
 //
 //   GET /        static HTML + JS, served from flash in one send_P
 //   GET /status  live JSON, polled by the page once a second
@@ -28,6 +30,7 @@ public:
     explicit WebUIManager(DS18B20Processor  &ds18b20_proc,
                           VDOProcessor      &vdo_proc,
                           WaterProcessor    &water_proc,
+                          OilProcessor      &oil_proc,
                           HALMETPreferences &prefs,
                           SignalKBroker     &signalk);
 
@@ -39,6 +42,9 @@ private:
     void handleStatus();
     void handleCal();
 
+    // Fill the oil object of the /status response
+    void fillOil(JsonObject o, unsigned long now);
+
     // Fill one tank object of the /status response
     void fillTank(JsonObject o, float ohms, float filt, float ratio,
                   int samples, int window, unsigned long age_ms, bool ok);
@@ -46,6 +52,7 @@ private:
     DS18B20Processor  &_ds18b20_proc;
     VDOProcessor      &_vdo_proc;
     WaterProcessor    &_water_proc;
+    OilProcessor      &_oil_proc;
     HALMETPreferences &_prefs;
     SignalKBroker     &_signalk;
     WebServer          _server{80};

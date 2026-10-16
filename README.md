@@ -19,7 +19,7 @@ You use this code entirely at your own risk. The author accepts no liability for
 
 ## Introduction
 
-ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor, fuel tank level via a VDO European resistive sender, and fresh water tank level via a second resistive sender — both through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
+ESP32-based gateway for [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Interface) board. Reads exhaust temperature via a DS18B20 1-Wire sensor, fuel tank level via a VDO European resistive sender, fresh water tank level via a second resistive sender, and engine oil pressure passively from the existing VDO gauge's sender line — all three analog values through the onboard ADS1115 ADC. Sends readings to a [SignalK](https://signalk.org) server via WebSocket/JSON and broadcasts them to other ESP32 devices via ESP-NOW.
 
 OTA firmware updates are enabled. A read-only calibration/debug web page is included for measuring sender resistance during tank calibration; it is compiled out by default (`WEB_UI_ENABLED = false`) and is enabled only while calibrating. Persistent configuration storage (NVS) is skeleton-implemented and reserved for future use.
 
@@ -31,6 +31,7 @@ Developed and tested on:
 - DS18B20 1-Wire temperature sensor (exhaust)
 - Wema/VDO European resistive fuel sender (3-180 Ω, low resistance = empty)
 - Resistive fresh water sender (nominal 0-180 Ω, low resistance = empty)
+- VDO cockpit oil pressure gauge 0-5 bar with VDO pressure sender (10-184 Ω), read passively in parallel with the gauge
 
 Integrated via ESP-NOW to:
 - [ESP32-Crowpanel-compass](https://github.com/mkvesala/ESP32-Crowpanel-compass)
@@ -39,7 +40,7 @@ Integrated via ESP-NOW to:
 
 This is one of my individual digital boat projects. Use at your own risk. Not for safety-critical operations.
 
-1. I needed engine exhaust temperature, fuel tank level and fresh water tank level available in SignalK and on the vessel's ESP-NOW peer-to-peer network
+1. I needed engine exhaust temperature, oil pressure, fuel tank level and fresh water tank level available in SignalK and on the vessel's ESP-NOW peer-to-peer network
 2. The HALMET board provides galvanically isolated analog inputs with a built-in constant current source, making it well suited for resistive senders without an external gauge
 3. I wanted to continue building on the ESP32 gateway design pattern established in previous projects
 
@@ -47,7 +48,8 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
-| v1.3.1 | main | Latest release. Documentation only: README disclaimer added. No firmware logic changes. |
+| v1.4.0 | feature/oilpressure | Engine oil pressure read passively from the existing VDO gauge on A3 (no CCS), published to `propulsion.0.oilPressure` and as ESP-NOW `HALMET_OIL_DELTA`. Requires a one-time on-board calibration before anything is published. |
+| v1.3.1 | main | Documentation only: README disclaimer added. No firmware logic changes. |
 | v1.3.0 | main | Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`, off by default) that replaces the serial monitor while measuring the table. |
 | v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
 | v1.1.0 | main | WebSocket ping/pong liveness + graceful reconnect (half-open TCP detection). |
@@ -92,6 +94,17 @@ Class diagram including the companion projects:
 - Owned by: `HALMETApplication`
 - Responsible for: three-phase filtering pipeline (raw → median 60 → EMA α=0.04) and piecewise-linear mapping of sender resistance to fill ratio through the measured calibration table, since the tank is irregularly shaped; see `docs/water_level_calibration.md`
 
+**`OilSensor`:**
+- Owns: `Adafruit_ADS1115` (its own instance, same chip, channel 2)
+- Owned by: `HALMETApplication`
+- Responsible for: reading the voltage on input A3, which is tapped in parallel with the VDO oil pressure gauge's S terminal. No CCS — the gauge itself drives the sender
+
+**`OilProcessor`:**
+- Owns: `OilPressureDelta` (data struct), `OilCal` gauge model and VDO 0-5 bar sender curve, 5-sample circular buffer
+- Uses: `OilSensor`
+- Owned by: `HALMETApplication`
+- Responsible for: converting gauge voltage to sender resistance through a calibrated Thevenin model of the gauge, rejecting open/short readings, median 5 → EMA α=0.3 filtering, sender curve → pressure in Pa, and suppressing stale or uncalibrated values; see `docs/oil_pressure.md`
+
 **`HALMETPreferences`:**
 - Owns: `Preferences`
 - Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
@@ -100,23 +113,23 @@ Class diagram including the companion projects:
 
 **`SignalKBroker`:**
 - Owns: `WebsocketsClient` (via `std::unique_ptr`, recreated fresh on every reconnect)
-- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `OilProcessor`
 - Owned by: `HALMETApplication`
 - Responsible for: WebSocket connection and delta transmission to SignalK server; active ping/pong liveness (`ping()` / `isStale()`) for half-open TCP detection
 
 **`ESPNowBroker`:**
-- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `OilProcessor`
 - Owned by: `HALMETApplication`
-- Responsible for: ESP-NOW broadcast of engine, fuel tank and fresh water tank data
+- Responsible for: ESP-NOW broadcast of engine, oil pressure, fuel tank and fresh water tank data
 
 **`WebUIManager`:**
 - Owns: `WebServer`
-- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`
+- Uses: `DS18B20Processor`, `VDOProcessor`, `WaterProcessor`, `OilProcessor`, `HALMETPreferences`, `SignalKBroker`
 - Owned by: `HALMETApplication`
 - Responsible for: HTTP calibration/debug page (`/`, `/status`, `/cal`) — read-only, no authentication, gated by `HALMETApplication::WEB_UI_ENABLED`, which ships as `false` so the page is compiled out of a production build. Reachable over the STA interface only.
 
 **`HALMETApplication`:**
-- Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `WaterSensor`, `WaterProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
+- Owns: `DS18B20Sensor`, `DS18B20Processor`, `VDOSensor`, `VDOProcessor`, `WaterSensor`, `WaterProcessor`, `OilSensor`, `OilProcessor`, `HALMETPreferences`, `SignalKBroker`, `ESPNowBroker`, `WebUIManager`
 - Uses: `WifiState`
 - Responsible for: orchestrating everything within the main program; manages the DS18B20 FreeRTOS task, WiFi state machine, and all loop timers
 
@@ -153,6 +166,15 @@ Unlike the fuel sender, a reading of 0 Ω is treated as a **valid empty tank** r
 
 See `docs/water_level_calibration.md` for the calibration procedure and filter rationale.
 
+**Oil pressure (existing VDO gauge + ADS1115, passive):**
+1. ADS1115 channel 2 (input A3, **no CCS jumper**) is sampled every ~0.5 s in the main loop. A3 is tapped with a piggyback spade on the gauge's S terminal, so the analog gauge keeps working unchanged
+2. The gauge drives the sender itself; seen from the S terminal it is a fixed Thevenin source, so sender resistance is `R = R_TH · V / (V_OC − V)` with `V_OC` and `R_TH` measured once on board. The formula is a pure ratio, so the input divider, series resistor and wiring resistance cancel out
+3. Resistance is mapped to pressure through the VDO 0-5 bar sender curve (10 Ω = 0 bar … 184 Ω = 5 bar, 0.5 bar steps), clamped, never extrapolated
+4. Median(5) → EMA(α=0.3) — fast, since oil pressure is dynamic
+5. Open sender, shorted S wire or unpowered gauge are rejected; if no valid sample arrives for 5 s, nothing is sent rather than a frozen value. Nothing at all is sent until `OilCal::CALIBRATED` is set
+
+See `docs/oil_pressure.md` for wiring, the gauge model and the calibration procedure.
+
 ### SignalK communication
 
 Connects to:
@@ -165,6 +187,7 @@ ws://<server>:<port>/signalk/v1/stream?token=<optional>
 | SignalK path | Unit | Frequency | Source |
 |---|---|---|---|
 | `propulsion.0.exhaustTemperature` | Kelvin | ~1 s | DS18B20 |
+| `propulsion.0.oilPressure` | Pa | ~1 s (only while fresh and calibrated) | VDO gauge/ADS1115 |
 | `tanks.fuel.0.currentLevel` | ratio 0-1 | ~3 s | VDO/ADS1115 |
 | `tanks.freshWater.0.currentLevel` | ratio 0-1 | ~4 s | Water sender/ADS1115 |
 | `tanks.fuel.0.capacity` | m³ | once, on first poll cycle after connect | static (0.4 m³) |
@@ -189,6 +212,8 @@ Broadcasts sensor data via ESP-NOW for other ESP32 devices, such as external dis
   - `fuel_level_ratio` — fuel level ratio 0.0-1.0
 - `HALMETWaterDelta` struct containing:
   - `water_level_ratio` — fresh water level ratio 0.0-1.0
+- `HALMETOilDelta` struct (`HALMET_OIL_DELTA = 10`) containing:
+  - `oil_pressure_pa` — engine oil pressure in Pa; not sent while stale or uncalibrated, so receivers should age it out
 
 New sensors get a new `ESPNowMsgType` value and their own payload struct rather than extra fields on an existing one, so already-deployed receivers keep decoding the old structs correctly and need no reflash.
 
@@ -231,6 +256,8 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 | `VDOProcessor.h / .cpp` | Class `VDOProcessor` — median + EMA filtering, fill ratio |
 | `WaterSensor.h / .cpp` | Class `WaterSensor` — ADS1115 resistance measurement (channel 1) |
 | `WaterProcessor.h / .cpp` | Class `WaterProcessor` — calibration table, median + EMA filtering, fill ratio |
+| `OilSensor.h / .cpp` | Class `OilSensor` — ADS1115 passive voltage measurement (channel 2) |
+| `OilProcessor.h / .cpp` | Class `OilProcessor` — gauge model, sender curve, median + EMA filtering, oil pressure |
 | `HALMETPreferences.h / .cpp` | Class `HALMETPreferences` — NVS skeleton |
 | `SignalKBroker.h / .cpp` | Class `SignalKBroker` |
 | `ESPNowBroker.h / .cpp` | Class `ESPNowBroker` |
@@ -238,6 +265,7 @@ ESP-NOW requires `WIFI_AP_STA` mode, which opens an AP interface on the ESP32. T
 | `HALMETApplication.h / .cpp` | Class `HALMETApplication`, the "app" |
 | `docs/fuel_level_filtering.md` | Fuel level filter design rationale and parameter derivation |
 | `docs/water_level_calibration.md` | Fresh water tank calibration procedure and filter rationale |
+| `docs/oil_pressure.md` | Oil pressure wiring, gauge model and calibration procedure |
 
 ## Hardware
 
@@ -260,6 +288,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 | DS18B20 temperature | 1-Wire | 1-Wire header (GPIO4) |
 | VDO resistive fuel sender | Resistive, 3-180 Ω | Analog input A1 (CCS jumper enabled) |
 | Fresh water resistive sender | Resistive, nominal 0-180 Ω | Analog input A2 (CCS jumper enabled) |
+| VDO oil pressure gauge + sender | Passive voltage on gauge S terminal | Analog input A3 (**no** CCS jumper) |
 
 ### Bill of materials
 
@@ -267,10 +296,11 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 2. DS18B20 1-Wire temperature sensor (waterproof probe recommended for exhaust)
 3. Wema/VDO European resistive fuel sender (3 Ω = empty, 180 Ω = full)
 4. Resistive fresh water sender (nominal 0-180 Ω, low resistance = empty)
-5. Wiring
-6. 12 V DC power supply (from vessel's electrical system)
-7. WiFi router providing wireless LAN AP
-8. SignalK server running in LAN
+5. Existing VDO cockpit oil pressure gauge 0-5 bar and sender; 6.3 mm piggyback spade connector and 1 kΩ resistor for the tap
+6. Wiring
+7. 12 V DC power supply (from vessel's electrical system)
+8. WiFi router providing wireless LAN AP
+9. SignalK server running in LAN
 
 **No paid partnerships.**
 
@@ -312,9 +342,11 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). The HALMET board has a built-in pull-up resistor on the 1-Wire line — no external pull-up is needed. Verify wiring against the HALMET schematic; incorrect wiring (e.g. swapped VCC/GND) will prevent the device from booting.
 7. Connect the VDO sender signal wire to HALMET analog input A1; connect sender ground to HALMET GND
 8. Connect the fresh water sender signal wire to HALMET analog input A2; connect sender ground to HALMET GND
-9. Connect and power up the HALMET board
-10. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
-11. The fresh water tank is calibrated for Frida's 80 L tank — see `docs/water_level_calibration.md`. Note that `currentLevel` never exceeds ~0.957 and the 57.5-80 L range is not resolvable; both are sender limits, not bugs.
+9. Tap the oil pressure gauge's S terminal with a piggyback spade → 1 kΩ series resistor → HALMET analog input A3 (**no CCS jumper on A3**); connect HALMET GND to the gauge ground terminal. See `docs/oil_pressure.md`
+10. Connect and power up the HALMET board
+11. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
+12. Calibrate the oil pressure gauge model on board (`docs/oil_pressure.md`); until `OilCal::CALIBRATED` is set, no oil pressure is published
+13. The fresh water tank is calibrated for Frida's 80 L tank — see `docs/water_level_calibration.md`. Note that `currentLevel` never exceeds ~0.957 and the 57.5-80 L range is not resolvable; both are sender limits, not bugs.
 
 ## Security
 

@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-16
+
+### Added
+
+- `OilSensor` — passively reads the voltage on the existing VDO cockpit oil pressure gauge's S terminal via the ADS1115 (0x4B, channel 2 = HALMET analog input A3). The CCS jumper must **not** be fitted on A3: the gauge drives the sender through its own coils, and the constant current source would add to that current and corrupt the gauge. Third `Adafruit_ADS1115` instance on the shared chip, read sequentially from the main loop like the other two.
+- `OilProcessor` — converts gauge voltage to sender resistance with a Thevenin model of the gauge (`R = R_TH·V/(V_OC−V)`), then to pressure through the VDO 0-5 bar sender curve from the VDO cockpit manual (10 Ω = 0 bar … 184 Ω = 5 bar, 0.5 bar rows, row index carries the pressure, compile-time monotonicity `static_assert`, clamped not extrapolated). `V_OC` and `R_TH` are measured once on board from HALMET's own readings, which makes the formula a pure ratio: the input divider, an optional protective series resistor and the wiring resistance all cancel. Filtering is median(5) → EMA(α=0.3) at 499 ms — fast, since oil pressure is dynamic. Open sender (`V ≥ V_OC`), shorted S wire or unpowered gauge (`R < 3 Ω`) and implausible readings (`R > 300 Ω`) are rejected.
+- `OilCal::CALIBRATED` — while `false` (as shipped) the calibration page shows volts, ohms and bar, but nothing is sent to SignalK or ESP-NOW. A guessed gauge model must never reach the network as an oil pressure.
+- Stale guard — `OilProcessor::getOilPressureDelta()` returns NAN once the last accepted sample is older than 5 s, so both brokers stop sending. A frozen "pressure OK" is more dangerous than a missing value; this differs deliberately from the tank processors, which hold their last level.
+- `SignalKBroker::sendOilDelta()` — `propulsion.0.oilPressure` [Pa] on its own `SK_OIL_TX_MS` (1013 ms) timer. A separate method, not folded into `sendEngineDelta()`, which returns early whenever the exhaust temperature is missing.
+- `ESPNowBroker::sendOilDelta()` and `espnow_protocol.h` `ESPNowMsgType::HALMET_OIL_DELTA = 10` / `HALMETOilDelta { float oil_pressure_pa; }`. 10 was the next free value across every fleet copy. Existing structs are unchanged, so deployed receivers ignore type 10 and need no reflash.
+- `WebUIManager` — oil section on the calibration page and in `/status` (volts, ohms, filtered ohms, bar, read/accept ages, model constants, calibrated flag).
+- `docs/oil_pressure.md` — wiring (piggyback on the gauge S terminal, 1 kΩ series resistor, common ground check), the gauge model, and the on-board calibration procedure.
+
+### Changed
+
+- `SignalKBroker`, `ESPNowBroker` and `WebUIManager` constructors take an `OilProcessor &`.
+- `HALMETApplication::sensorOk()` still gates on `_ads_ok` alone; `_oil_ok` only gates `handleOilRead()`, for the same reason as `_water_ok`.
+
+### Notes
+
+- Existing exhaust temperature, fuel and fresh water behaviour, timers and payloads are unchanged. The extra ADC conversion costs ~8 ms every 499 ms in the main loop.
+- The updated `espnow_protocol.h` must be copied to every other fleet project before the change is complete.
+
 ## [1.3.1] - 2026-10-12
 
 Documentation patch only. **No change to firmware logic** — only `README.md`, `CHANGELOG.md`

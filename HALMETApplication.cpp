@@ -11,10 +11,12 @@ HALMETApplication::HALMETApplication()
     , _vdo_proc(_vdo)
     , _water()
     , _water_proc(_water)
+    , _oil()
+    , _oil_proc(_oil)
     , _prefs(_ds18b20_proc, _vdo_proc, _water_proc)
-    , _signalk(_ds18b20_proc, _vdo_proc, _water_proc)
-    , _espnow(_ds18b20_proc, _vdo_proc, _water_proc)
-    , _webui(_ds18b20_proc, _vdo_proc, _water_proc, _prefs, _signalk)
+    , _signalk(_ds18b20_proc, _vdo_proc, _water_proc, _oil_proc)
+    , _espnow(_ds18b20_proc, _vdo_proc, _water_proc, _oil_proc)
+    , _webui(_ds18b20_proc, _vdo_proc, _water_proc, _oil_proc, _prefs, _signalk)
 {}
 
 // Initialize hardware and start subsystems
@@ -32,6 +34,10 @@ void HALMETApplication::begin() {
     // ADS1115 channel 1 (fresh water sender) — same chip, redundant probe, never halts
     _water_ok = _water.begin();
     //Serial.printf("[WATER] ADS1115 ch1: %s\n", _water_ok ? "OK" : "FAIL");
+
+    // ADS1115 channel 2 (oil pressure, passive on the gauge S line) — same chip, never halts
+    _oil_ok = _oil.begin();
+    //Serial.printf("[OIL] ADS1115 ch2: %s\n", _oil_ok ? "OK" : "FAIL");
 
     // DS18B20 (exhaust temperature)
     _ds18_ok = _ds18b20.begin();
@@ -79,6 +85,7 @@ void HALMETApplication::loop() {
     handleWebsocket(now);
     handleVDORead(now);
     handleWaterRead(now);
+    handleOilRead(now);
     handleSignalK(now);
     handleESPNow(now);
 }
@@ -222,6 +229,18 @@ void HALMETApplication::handleWaterRead(unsigned long now) {
     }
 }
 
+// Read oil pressure gauge S terminal voltage and feed into processor
+void HALMETApplication::handleOilRead(unsigned long now) {
+    if (!_oil_ok) return;
+    if ((long)(now - _last_oil_read_ms) < OIL_READ_MS) return;
+    _last_oil_read_ms = now;
+    float volts = 0.0f;
+    if (_oil.readVoltage(volts)) {
+        //Serial.printf("[OIL] %.3f V\n", volts);   // uncomment for calibration
+        _oil_proc.updateVoltage(volts);
+    }
+}
+
 // Send SignalK deltas on independent timers
 void HALMETApplication::handleSignalK(unsigned long now) {
     if (_wifi_state != WifiState::CONNECTED) return;
@@ -238,15 +257,20 @@ void HALMETApplication::handleSignalK(unsigned long now) {
         _last_sk_water_ms = now;
         _signalk.sendWaterDelta();
     }
+    if ((long)(now - _last_sk_oil_ms) >= SK_OIL_TX_MS) {
+        _last_sk_oil_ms = now;
+        _signalk.sendOilDelta();
+    }
 }
 
-// Broadcast both sensor deltas via ESP-NOW
+// Broadcast all sensor deltas via ESP-NOW
 void HALMETApplication::handleESPNow(unsigned long now) {
     if ((long)(now - _last_espnow_ms) < ESPNOW_TX_MS) return;
     _last_espnow_ms = now;
     _espnow.sendEngineDelta();
     _espnow.sendTankDelta();
     _espnow.sendWaterDelta();
+    _espnow.sendOilDelta();
 }
 
 // Initialize WiFi-dependent services — guarded: OTA and WebServer routes must only be registered once

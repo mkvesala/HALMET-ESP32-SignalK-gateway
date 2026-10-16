@@ -5,6 +5,7 @@
 #include "DS18B20Processor.h"
 #include "VDOProcessor.h"
 #include "WaterProcessor.h"
+#include "OilProcessor.h"
 #include "espnow_protocol.h"
 
 // === E S P N O W B R O K E R  C L A S S ===
@@ -16,17 +17,20 @@ class ESPNowBroker {
 public:
     explicit ESPNowBroker(DS18B20Processor &ds18b20_proc,
                           VDOProcessor     &vdo_proc,
-                          WaterProcessor   &water_proc);
+                          WaterProcessor   &water_proc,
+                          OilProcessor     &oil_proc);
 
     bool begin();
     void sendEngineDelta();  // broadcast HALMETEngineDelta
     void sendTankDelta();    // broadcast HALMETTankDelta
     void sendWaterDelta();   // broadcast HALMETWaterDelta
+    void sendOilDelta();     // broadcast HALMETOilDelta
 
 private:
     DS18B20Processor &_ds18b20_proc;
     VDOProcessor     &_vdo_proc;
     WaterProcessor   &_water_proc;
+    OilProcessor     &_oil_proc;
     bool              _initialized = false;
 
     static constexpr uint8_t BROADCAST_ADDR[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

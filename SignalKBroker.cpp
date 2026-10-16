@@ -9,10 +9,12 @@ using namespace websockets;
 // Constructor
 SignalKBroker::SignalKBroker(DS18B20Processor &ds18b20_proc,
                              VDOProcessor     &vdo_proc,
-                             WaterProcessor   &water_proc)
+                             WaterProcessor   &water_proc,
+                             OilProcessor     &oil_proc)
     : _ds18b20_proc(ds18b20_proc)
     , _vdo_proc(vdo_proc)
     , _water_proc(water_proc)
+    , _oil_proc(oil_proc)
 {}
 
 // Set up URL and source, connect WebSocket
@@ -131,6 +133,25 @@ void SignalKBroker::sendWaterDelta() {
     v["value"] = delta.water_level_ratio;
 
     sendDoc(_water_doc);
+}
+
+// Send oil pressure delta — skipped while stale or uncalibrated (delta is NAN)
+void SignalKBroker::sendOilDelta() {
+    if (!_ws_open || !_ws) return;
+    auto delta = _oil_proc.getOilPressureDelta();
+    if (!validf(delta.oil_pressure_pa)) return;
+
+    _oil_doc.clear();
+    _oil_doc["context"] = "vessels.self";
+    auto updates = _oil_doc.createNestedArray("updates");
+    auto up      = updates.createNestedObject();
+    up["$source"] = _sk_source;
+    auto values  = up.createNestedArray("values");
+    auto v       = values.createNestedObject();
+    v["path"]  = "propulsion.0.oilPressure";
+    v["value"] = delta.oil_pressure_pa;
+
+    sendDoc(_oil_doc);
 }
 
 // Send static tank capacities once (called on WebSocket connect)

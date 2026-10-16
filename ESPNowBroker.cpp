@@ -6,10 +6,12 @@
 // Constructor
 ESPNowBroker::ESPNowBroker(DS18B20Processor &ds18b20_proc,
                            VDOProcessor     &vdo_proc,
-                           WaterProcessor   &water_proc)
+                           WaterProcessor   &water_proc,
+                           OilProcessor     &oil_proc)
     : _ds18b20_proc(ds18b20_proc)
     , _vdo_proc(vdo_proc)
     , _water_proc(water_proc)
+    , _oil_proc(oil_proc)
 {}
 
 // Initialize ESP-NOW with broadcast peer and callbacks
@@ -65,6 +67,19 @@ void ESPNowBroker::sendWaterDelta() {
     ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_WATER_DELTA,
                        sizeof(ESPNow::HALMETWaterDelta));
     pkt.payload.water_level_ratio = delta.water_level_ratio;
+    esp_now_send(BROADCAST_ADDR, reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
+}
+
+// Broadcast oil pressure — skipped while stale or uncalibrated (delta is NAN)
+void ESPNowBroker::sendOilDelta() {
+    if (!_initialized) return;
+    auto delta = _oil_proc.getOilPressureDelta();
+    if (!validf(delta.oil_pressure_pa)) return;
+
+    ESPNow::ESPNowPacket<ESPNow::HALMETOilDelta> pkt;
+    ESPNow::initHeader(pkt.hdr, ESPNow::ESPNowMsgType::HALMET_OIL_DELTA,
+                       sizeof(ESPNow::HALMETOilDelta));
+    pkt.payload.oil_pressure_pa = delta.oil_pressure_pa;
     esp_now_send(BROADCAST_ADDR, reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
 }
 

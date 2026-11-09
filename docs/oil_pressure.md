@@ -76,7 +76,7 @@ Mittarin S-napa ──┬── (alkuperäinen S-johdin anturille, koskematon)
                   │
             piggyback-liitin
                   │
-             1 kΩ 0.25 W  (kutistesukassa heti liittimen jälkeen)
+             330 Ω 0.6 W  (kutistesukassa heti liittimen jälkeen)
                   │
                   └──────────────────────── HALMET A3   (EI CCS-jumpperia)
 
@@ -84,8 +84,11 @@ Mittarin ⏚ / paneelin maakisko ──────────── HALMET GND
 ```
 
 1. **A3: ei CCS-jumpperia.** A1:n ja A2:n jumpperit pysyvät paikallaan.
-2. 1 kΩ sarjavastus suojaa mittaripiiriä: jos HALMET-johdin hankautuu maihin, mittari ei putoa nollaan. Kalibrointi kumoaa vastuksen vaikutuksen. Vastuksen voi jättää pois, mutta kalibrointi on tehtävä samalla kytkennällä, jota käytetään lopullisesti.
-3. Johdin 0.5–0.75 mm², kierretty pari GND:n kanssa, pois laturin ja käynnistimen kaapeleiden vierestä.
+2. **330 Ω sarjavastus, vähintään 0.6 W.** Vastus rajoittaa uuden 3 m:n johtimen vikavirrat. Jos HALMET-johdin koskettaa +12.3 V johdinta, virta jää noin 36 mA:iin: vastuksessa palaa noin 0.43 W ja anturissa vain noin 13 mW. Ilman vastusta 12.3 V menisi suoraan S-solmuun, ja pienellä paineella (10 Ω) anturin läpi kulkisi noin 1.2 A, mikä polttaisi anturin vastuselementin. Vastus myös erottaa mittaripiirin HALMETin puolen vioista ja rajoittaa jännitepiikkien virtaa HALMETin tulosuojaan.
+   - **Maavuodolta vastus ei suojaa.** Jos HALMET-johdin hankautuu maihin, vastus kytkeytyy anturin rinnalle ja mittari näyttää liian vähän (330 Ω:lla 5 barin kohdalla noin 3.1 bar). Lukema on aina matalan lukeman suuntaan, eli vika ei peitä todellista painehäviötä. Alkuperäisen S-johtimen maavuoto pudottaa mittarin nollaan vastuksesta riippumatta. HALMET näkee maavuodossa 0 V, hylkää lukemat ja lopettaa lähettämisen.
+   - Kalibrointikaava on suhdemuotoinen, joten vastuksen arvo kumoutuu. Kalibrointi on silti tehtävä tällä lopullisella vastuksella.
+   - Vastus voi lämmetä +12 V vian aikana, joten älä teippaa sitä tiukasti muiden johtimien tai muoviosien kylkeen.
+3. Kaapeli: 3-johtiminen, monisäikeinen 0.75 mm² silikonikaapeli, sama kuin muissa HALMET-vedoissa. Johtimet: öljynpaineen S → A3, vedenlämpömittarin S → A4 (seuraava feature, myös 330 Ω sarjavastus) ja mittarin ⏚ → HALMET GND. Silikonivaippa on pehmeä, joten suojaa se läpivienneissä kumiholkilla tai spiraalisuojalla. Vedä kaapeli erilleen laturin ja käynnistimen kaapeleista. Älä käytä yksisäikeistä kaapelia (esim. CAT6): se katkeaa tärinässä eikä pysy luotettavasti puristusliittimessä.
 4. Mittarin +, ⏚ ja anturin S/WK-johdotus jätetään ennalleen. WK jää tässä kytkemättä.
 5. **Maaero:** mittaa yleismittarilla moottori käynnissä jännite HALMET GND ↔ mittarin ⏚. Sen pitää olla alle 20 mV.
 

@@ -296,7 +296,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 2. DS18B20 1-Wire temperature sensor (waterproof probe recommended for exhaust)
 3. Wema/VDO European resistive fuel sender (3 Ω = empty, 180 Ω = full)
 4. Resistive fresh water sender (nominal 0-180 Ω, low resistance = empty)
-5. Existing VDO cockpit oil pressure gauge 0-5 bar and sender; 6.3 mm piggyback spade connector and 1 kΩ resistor for the tap
+5. Existing VDO cockpit oil pressure gauge 0-5 bar and sender; 6.3 mm piggyback spade connector and 330 Ω 0.6 W resistor for the tap
 6. Wiring
 7. 12 V DC power supply (from vessel's electrical system)
 8. WiFi router providing wireless LAN AP
@@ -342,7 +342,7 @@ The [Hat Labs HALMET](https://docs.hatlabs.fi/halmet/) (Marine Engine & Tank Int
 6. Connect the DS18B20 to the HALMET 1-Wire header (GPIO4). The HALMET board has a built-in pull-up resistor on the 1-Wire line — no external pull-up is needed. Verify wiring against the HALMET schematic; incorrect wiring (e.g. swapped VCC/GND) will prevent the device from booting.
 7. Connect the VDO sender signal wire to HALMET analog input A1; connect sender ground to HALMET GND
 8. Connect the fresh water sender signal wire to HALMET analog input A2; connect sender ground to HALMET GND
-9. Tap the oil pressure gauge's S terminal with a piggyback spade → 1 kΩ series resistor → HALMET analog input A3 (**no CCS jumper on A3**); connect HALMET GND to the gauge ground terminal. See `docs/oil_pressure.md`
+9. Tap the oil pressure gauge's S terminal with a piggyback spade → 330 Ω 0.6 W series resistor → HALMET analog input A3 (**no CCS jumper on A3**); connect HALMET GND to the gauge ground terminal. See `docs/oil_pressure.md`
 10. Connect and power up the HALMET board
 11. Compile and upload with Arduino IDE (board: `ESP32 Dev Module`, required libraries installed)
 12. Calibrate the oil pressure gauge model on board (`docs/oil_pressure.md`); until `OilCal::CALIBRATED` is set, no oil pressure is published

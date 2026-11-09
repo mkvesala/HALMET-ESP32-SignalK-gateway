@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `SignalKBroker::sendOilDelta()` — `propulsion.0.oilPressure` [Pa] on its own `SK_OIL_TX_MS` (1013 ms) timer. A separate method, not folded into `sendEngineDelta()`, which returns early whenever the exhaust temperature is missing.
 - `ESPNowBroker::sendOilDelta()` and `espnow_protocol.h` `ESPNowMsgType::HALMET_OIL_DELTA = 10` / `HALMETOilDelta { float oil_pressure_pa; }`. 10 was the next free value across every fleet copy. Existing structs are unchanged, so deployed receivers ignore type 10 and need no reflash.
 - `WebUIManager` — oil section on the calibration page and in `/status` (volts, ohms, filtered ohms, bar, read/accept ages, model constants, calibrated flag).
-- `docs/oil_pressure.md` — wiring (piggyback on the gauge S terminal, 1 kΩ series resistor, common ground check), the gauge model, and the on-board calibration procedure.
+- `docs/oil_pressure.md` — wiring (piggyback on the gauge S terminal, 330 Ω 0.6 W series resistor that bounds fault current if the new lead shorts to +12 V, common ground check), the gauge model, and the on-board calibration procedure.
 
 ### Changed
 

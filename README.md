@@ -49,6 +49,7 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 | Release | Branch | Comment |
 |---------|--------|---------|
 | v1.4.0 | feature/oilpressure | Engine oil pressure read passively from the existing VDO gauge on A3 (no CCS), published to `propulsion.0.oilPressure` and as ESP-NOW `HALMET_OIL_DELTA`. Requires a one-time on-board calibration before anything is published. |
+| v1.3.2 | main | Latest release. WiFi outage recovery: the radio stays on, so ESP-NOW keeps broadcasting while the router is down, and WiFi and SignalK reconnect by themselves. See CHANGELOG. |
 | v1.3.1 | main | Documentation only: README disclaimer added. No firmware logic changes. |
 | v1.3.0 | main | Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`, off by default) that replaces the serial monitor while measuring the table. |
 | v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |
@@ -227,7 +228,7 @@ New sensors get a new `ESPNowMsgType` value and their own payload struct rather 
 
 ### WiFi and OTA
 
-- WiFi state machine: `INIT → CONNECTING → CONNECTED`, with a ~90-second connection timeout and automatic fallback to `OFF` on failure or missing SSID
+- WiFi state machine: `INIT → CONNECTING → CONNECTED`. A connection attempt lasts up to ~15 s; if it fails, the gateway waits in `DISCONNECTED` with the radio on (ESP-NOW keeps working on channel 6) and retries every ~30 s–2 min until the network returns. The radio is never switched off
 - **Static IP** — the device configures a fixed address via `WiFi.config()` (`WIFI_STATIC_IP` / `WIFI_GATEWAY` / `WIFI_SUBNET` in `secrets.h`), applied at boot and reapplied after every reconnect, since `WiFi.disconnect(true)` does not preserve the static configuration. Pick an address outside your router's DHCP pool.
 - **Hardened reconnect** — on connection loss, the WebSocket is closed and the STA interface is fully torn down (`WiFi.disconnect(true)` + 200 ms settle + `WiFi.setSleep(false)` + static IP reapplied) before reconnecting, instead of a bare disconnect/begin cycle that can leave the radio stuck or the WebSocket stale
 - ArduinoOTA enabled immediately after WiFi connects; hostname is set to the SignalK source name

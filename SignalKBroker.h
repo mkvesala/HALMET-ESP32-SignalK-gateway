@@ -38,7 +38,7 @@ public:
     void sendTankDelta();      // tanks.fuel.0.currentLevel [ratio]
     void sendWaterDelta();     // tanks.freshWater.0.currentLevel [ratio]
     void sendOilDelta();       // propulsion.0.oilPressure [Pa]
-    void sendTankCapacity();   // tanks.*.capacity [m³] — both tanks, once on connect
+    bool sendTankCapacity();   // tanks.*.capacity [m³] — both tanks, once on connect; false = skipped, retry
 
     void ping();                             // send a client ping frame if open
     bool isStale(unsigned long now) const;   // open but no pong within PONG_TIMEOUT_MS
@@ -52,7 +52,7 @@ private:
     void onMessageCallback(websockets::WebsocketsMessage msg);
     void onEventCallback(websockets::WebsocketsEvent event, const String &data);
 
-    bool sendDoc(StaticJsonDocument<512> &doc);
+    bool sendDoc(JsonDocument &doc);
 
     DS18B20Processor             &_ds18b20_proc;
     VDOProcessor                 &_vdo_proc;
@@ -60,10 +60,10 @@ private:
     OilProcessor                 &_oil_proc;
     std::unique_ptr<websockets::WebsocketsClient> _ws;  // fresh instance every connect
 
-    StaticJsonDocument<512> _engine_doc;
-    StaticJsonDocument<512> _tank_doc;
-    StaticJsonDocument<512> _water_doc;
-    StaticJsonDocument<512> _oil_doc;
+    JsonDocument _engine_doc;
+    JsonDocument _tank_doc;
+    JsonDocument _water_doc;
+    JsonDocument _oil_doc;
 
     bool _ws_open = false;
     char _sk_url[512]    = {};

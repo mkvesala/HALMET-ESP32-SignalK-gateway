@@ -47,7 +47,8 @@ This is one of my individual digital boat projects. Use at your own risk. Not fo
 
 | Release | Branch | Comment |
 |---------|--------|---------|
-| v1.3.2 | main | Latest release. WiFi outage recovery: the radio stays on, so ESP-NOW keeps broadcasting while the router is down, and WiFi and SignalK reconnect by themselves. See CHANGELOG. |
+| v1.3.3 | main | Latest release. ArduinoJson 7 API migration: deprecated calls replaced, SignalK traffic unchanged. See CHANGELOG. |
+| v1.3.2 | main | WiFi outage recovery: the radio stays on, so ESP-NOW keeps broadcasting while the router is down, and WiFi and SignalK reconnect by themselves. See CHANGELOG. |
 | v1.3.1 | main | Documentation only: README disclaimer added. No firmware logic changes. |
 | v1.3.0 | main | Fresh water tank level via a second resistive sender on A2, using a measured calibration table for the irregularly shaped tank. Adds a read-only calibration/debug web page (`WEB_UI_ENABLED`, off by default) that replaces the serial monitor while measuring the table. |
 | v1.2.0 | main | WebSocket client recreated per reconnect to fix permanent reconnect failure after prolonged uptime. |

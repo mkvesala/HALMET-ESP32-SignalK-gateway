@@ -120,7 +120,7 @@ void WebUIManager::handleStatus() {
     _status_doc["sk_open"]        = _signalk.isOpen();
     _status_doc["water_max_ohms"] = (float)WaterSensor::MAX_OHMS;  // cast: avoids odr-using the constexpr member
 
-    JsonObject w = _status_doc.createNestedObject("water");
+    JsonObject w = _status_doc["water"].to<JsonObject>();
     fillTank(w,
              _water_proc.getLastOhms(),
              _water_proc.getFilteredOhms(),
@@ -135,7 +135,7 @@ void WebUIManager::handleStatus() {
     if (validf(water_l)) w["litres"] = water_l; else w["litres"] = nullptr;
     w["sat"] = _water_proc.isAboveFloatCeiling();
 
-    JsonObject f = _status_doc.createNestedObject("fuel");
+    JsonObject f = _status_doc["fuel"].to<JsonObject>();
     fillTank(f,
              _vdo_proc.getLastOhms(),
              _vdo_proc.getFilteredOhms(),
@@ -147,7 +147,7 @@ void WebUIManager::handleStatus() {
 
     char out[1024];
     size_t n = serializeJson(_status_doc, out, sizeof(out));
-    if (n >= sizeof(out) - 1) {
+    if (n >= sizeof(out) - 1 || _status_doc.overflowed()) {
         _server.send(500, "text/plain", "status buffer too small");
         return;
     }
@@ -157,15 +157,15 @@ void WebUIManager::handleStatus() {
 
 // Calibration table — static data, fetched once per page load
 void WebUIManager::handleCal() {
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     doc["step_l"] = WaterCal::CAL_STEP_L;
     doc["cap_l"]  = WaterCal::TANK_CAPACITY_L;
-    JsonArray arr = doc.createNestedArray("ohms");
+    JsonArray arr = doc["ohms"].to<JsonArray>();
     for (int i = 0; i < WaterCal::CAL_POINTS; i++) arr.add(WaterCal::OHMS[i]);
 
     char out[768];
     size_t n = serializeJson(doc, out, sizeof(out));
-    if (n >= sizeof(out) - 1) {
+    if (n >= sizeof(out) - 1 || doc.overflowed()) {
         _server.send(500, "text/plain", "cal buffer too small");
         return;
     }

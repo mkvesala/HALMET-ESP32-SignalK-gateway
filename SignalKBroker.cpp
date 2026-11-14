@@ -28,8 +28,7 @@ void SignalKBroker::handleStatus() {
     if (!_ws_open) return;
     if (_ws) _ws->poll();
     if (!_capacity_sent) {
-        sendTankCapacity();
-        _capacity_sent = true;
+        _capacity_sent = sendTankCapacity();   // false only if a heap shortage skipped it
     }
 }
 
@@ -84,11 +83,11 @@ void SignalKBroker::sendEngineDelta() {
 
     _engine_doc.clear();
     _engine_doc["context"] = "vessels.self";
-    auto updates = _engine_doc.createNestedArray("updates");
-    auto up      = updates.createNestedObject();
+    auto updates = _engine_doc["updates"].to<JsonArray>();
+    auto up      = updates.add<JsonObject>();
     up["$source"] = _sk_source;
-    auto values  = up.createNestedArray("values");
-    auto v       = values.createNestedObject();
+    auto values  = up["values"].to<JsonArray>();
+    auto v       = values.add<JsonObject>();
     v["path"]  = "propulsion.0.exhaustTemperature";
     v["value"] = delta.exhaust_temp_k;
 
@@ -103,11 +102,11 @@ void SignalKBroker::sendTankDelta() {
 
     _tank_doc.clear();
     _tank_doc["context"] = "vessels.self";
-    auto updates = _tank_doc.createNestedArray("updates");
-    auto up      = updates.createNestedObject();
+    auto updates = _tank_doc["updates"].to<JsonArray>();
+    auto up      = updates.add<JsonObject>();
     up["$source"] = _sk_source;
-    auto values  = up.createNestedArray("values");
-    auto v       = values.createNestedObject();
+    auto values  = up["values"].to<JsonArray>();
+    auto v       = values.add<JsonObject>();
     v["path"]  = "tanks.fuel.0.currentLevel";
     v["value"] = delta.fuel_level_ratio;
 
@@ -122,11 +121,11 @@ void SignalKBroker::sendWaterDelta() {
 
     _water_doc.clear();
     _water_doc["context"] = "vessels.self";
-    auto updates = _water_doc.createNestedArray("updates");
-    auto up      = updates.createNestedObject();
+    auto updates = _water_doc["updates"].to<JsonArray>();
+    auto up      = updates.add<JsonObject>();
     up["$source"] = _sk_source;
-    auto values  = up.createNestedArray("values");
-    auto v       = values.createNestedObject();
+    auto values  = up["values"].to<JsonArray>();
+    auto v       = values.add<JsonObject>();
     v["path"]  = "tanks.freshWater.0.currentLevel";
     v["value"] = delta.water_level_ratio;
 
@@ -135,27 +134,29 @@ void SignalKBroker::sendWaterDelta() {
 
 // Send static tank capacities once (called on WebSocket connect)
 // Both tanks travel in one delta, so the single _capacity_sent flag governs both
-void SignalKBroker::sendTankCapacity() {
-    if (!_ws_open || !_ws) return;
-    StaticJsonDocument<384> doc;
+bool SignalKBroker::sendTankCapacity() {
+    if (!_ws_open || !_ws) return true;
+    JsonDocument doc;
     doc["context"] = "vessels.self";
-    auto updates = doc.createNestedArray("updates");
-    auto up      = updates.createNestedObject();
+    auto updates = doc["updates"].to<JsonArray>();
+    auto up      = updates.add<JsonObject>();
     up["$source"] = _sk_source;
-    auto values  = up.createNestedArray("values");
+    auto values  = up["values"].to<JsonArray>();
 
-    auto vf      = values.createNestedObject();
+    auto vf      = values.add<JsonObject>();
     vf["path"]  = "tanks.fuel.0.capacity";
     vf["value"] = _vdo_proc.getCapacityM3();
 
-    auto vw      = values.createNestedObject();
+    auto vw      = values.add<JsonObject>();
     vw["path"]  = "tanks.freshWater.0.capacity";
     vw["value"] = _water_proc.getCapacityM3();
 
+    if (doc.overflowed()) return false;   // heap ran out while building — never send a partial delta
     char buf[384];
     size_t n = serializeJson(doc, buf, sizeof(buf));
     bool ok = _ws->send(buf, n);
     if (!ok) closeWebsocket();
+    return true;
 }
 
 // === P R I V A T E ===
@@ -201,7 +202,8 @@ void SignalKBroker::onEventCallback(WebsocketsEvent event, const String & /*data
 }
 
 // Serialize doc and send; close WebSocket on failure
-bool SignalKBroker::sendDoc(StaticJsonDocument<512> &doc) {
+bool SignalKBroker::sendDoc(JsonDocument &doc) {
+    if (doc.overflowed()) return false;   // heap ran out while building — never send a partial delta
     char buf[640];
     size_t n = serializeJson(doc, buf, sizeof(buf));
     bool ok = _ws->send(buf, n);

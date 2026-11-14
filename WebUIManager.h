@@ -50,5 +50,5 @@ private:
     SignalKBroker     &_signalk;
     WebServer          _server{80};
 
-    StaticJsonDocument<1024> _status_doc;
+    JsonDocument _status_doc;
 };

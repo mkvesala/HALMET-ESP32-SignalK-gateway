@@ -1,3 +1,3 @@
 #pragma once
 
-inline constexpr const char* FIRMWARE_VERSION = "1.3.2";
+inline constexpr const char* FIRMWARE_VERSION = "1.3.3";

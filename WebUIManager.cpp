@@ -158,7 +158,7 @@ void WebUIManager::handleStatus() {
              now - _vdo_proc.getLastUpdateMs(),
              _vdo_proc.available());
 
-    fillOil(_status_doc.createNestedObject("oil"), now);
+    fillOil(_status_doc["oil"].to<JsonObject>(), now);
 
     char out[1024];
     size_t n = serializeJson(_status_doc, out, sizeof(out));

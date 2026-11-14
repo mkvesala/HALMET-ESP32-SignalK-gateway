@@ -142,11 +142,11 @@ void SignalKBroker::sendOilDelta() {
 
     _oil_doc.clear();
     _oil_doc["context"] = "vessels.self";
-    auto updates = _oil_doc.createNestedArray("updates");
-    auto up      = updates.createNestedObject();
+    auto updates = _oil_doc["updates"].to<JsonArray>();
+    auto up      = updates.add<JsonObject>();
     up["$source"] = _sk_source;
-    auto values  = up.createNestedArray("values");
-    auto v       = values.createNestedObject();
+    auto values  = up["values"].to<JsonArray>();
+    auto v       = values.add<JsonObject>();
     v["path"]  = "propulsion.0.oilPressure";
     v["value"] = delta.oil_pressure_pa;
 
